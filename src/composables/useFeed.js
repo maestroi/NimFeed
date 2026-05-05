@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { useIndexer } from '../indexer/useIndexer.js'
-import { getCatalogRefs, getCatalogRefsBySender, getPost, getFollowees } from '../db/queries.js'
-import { FEED_PAGE_SIZE } from '../protocol/constants.js'
+import { getCatalogRefs, getCatalogRefsBySender, getPost, getFollowees, updatePost } from '../db/queries.js'
+import { FEED_PAGE_SIZE, MISSING_CHUNKS_BLOCK_WINDOW } from '../protocol/constants.js'
 import { useAuthStore } from '../stores/auth.js'
 import { addressBytesToNq, derivePostAddress, nqToAddressBytes } from '../protocol/address.js'
 import { hexToPostIdBytes } from '../protocol/utils.js'
@@ -62,6 +62,7 @@ export function useFeed(mode = 'global') {
 
   async function resolvePosts(refs) {
     const t0 = performance.now()
+    const latestHeight = refs[0]?.block_height ?? 0
     debug(mode, 'resolvePosts:start', { refs: refs.length })
     return Promise.all(
       refs.map(async (ref) => {
@@ -76,6 +77,24 @@ export function useFeed(mode = 'global') {
           debug(mode, 'resolvePosts:chunked-miss', meta)
           triggerDerivedSync(ref, indexer)
           return skeletonPost(ref, 'pending')
+        }
+        if (
+          post.status === 'pending' &&
+          post.total_chunks != null &&
+          (post.chunks_received ?? 0) < post.total_chunks &&
+          post.block_height > 0 &&
+          latestHeight - post.block_height >= MISSING_CHUNKS_BLOCK_WINDOW
+        ) {
+          await updatePost(post.author, post.post_id, { status: 'missing_chunks' })
+          const next = { ...post, status: 'missing_chunks' }
+          debug(mode, 'resolvePosts:chunked-stale', {
+            ...meta,
+            latestHeight,
+            postHeight: post.block_height,
+            totalChunks: post.total_chunks,
+            chunksReceived: post.chunks_received ?? 0,
+          })
+          return next
         }
         debug(mode, 'resolvePosts:chunked-hit', { ...meta, status: post.status })
         return post

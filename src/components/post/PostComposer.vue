@@ -20,9 +20,21 @@ const emit = defineEmits(['submitted'])
 const auth = useAuthStore()
 const ui = useUiStore()
 const { composerReplyTo } = storeToRefs(ui)
-const { submitPost, sending, error, signingActive, signingStep, signingTotal, signingLabel } = usePost()
+const {
+  submitPost,
+  sending,
+  error,
+  signingActive,
+  signingStep,
+  signingTotal,
+  signingLabel,
+  hasPendingChunkUpload,
+  pendingChunkRemaining,
+  cancelPendingChunkUpload,
+} = usePost()
 const text = ref('')
 const charCount = ref(0)
+const popupBlocked = computed(() => String(error.value || '').toLowerCase().includes('popup blocked'))
 
 const effectiveReply = computed(() => {
   const p = props.replyTo
@@ -78,6 +90,10 @@ async function post() {
     /* surfaced via composable */
   }
 }
+
+function cancelPending() {
+  cancelPendingChunkUpload()
+}
 </script>
 
 <template>
@@ -116,20 +132,36 @@ async function post() {
           </span>
 
           <div class="flex items-center gap-2">
-            <span v-if="error" class="text-xs text-rose-600">{{ error }}</span>
+            <span v-if="error && !popupBlocked" class="text-xs text-rose-600">{{ error }}</span>
 
             <button
               class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               :disabled="!text.trim() || sending"
               @click="post"
             >
-              {{ sending ? 'Posting…' : 'Post' }}
+              {{ sending ? 'Posting…' : hasPendingChunkUpload ? 'Continue signing' : 'Post' }}
+            </button>
+            <button
+              v-if="hasPendingChunkUpload && !sending"
+              type="button"
+              class="nf-focus text-xs font-semibold text-[var(--nf-muted)] hover:text-rose-600"
+              @click="cancelPending"
+            >
+              Cancel pending upload
             </button>
           </div>
         </div>
 
         <p v-if="signingActive" class="mt-2 text-xs text-[var(--nf-muted)]">
-          Signing {{ signingStep }}/{{ signingTotal }}: {{ signingLabel }}
+          <template v-if="popupBlocked">
+            Signing {{ signingStep }}/{{ signingTotal }}. Popup blocked, click Continue signing.
+          </template>
+          <template v-else>
+            Signing {{ signingStep }}/{{ signingTotal }}: {{ signingLabel }}
+          </template>
+        </p>
+        <p v-if="hasPendingChunkUpload && !sending" class="mt-1 text-xs text-[var(--nf-muted)]">
+          Pending chunks left: {{ pendingChunkRemaining }}
         </p>
       </div>
     </div>

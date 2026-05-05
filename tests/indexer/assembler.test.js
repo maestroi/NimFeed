@@ -97,4 +97,15 @@ describe('tryAssemble', () => {
     const post = await db.posts.get(['NQ01 TEST', 'deadbeef00000001'])
     expect(post.status).toBe('pending')
   })
+
+  it('assembles when chunk rows are complete even if chunks_received counter is stale', async () => {
+    const { author, post_id, text } = await seedPost('Counter drift should still assemble.')
+    await db.posts.update([author, post_id], { chunks_received: 0 })
+
+    await tryAssemble(author, post_id)
+
+    const post = await db.posts.get([author, post_id])
+    expect(post.status).toBe('complete')
+    expect(post.content).toBe(text)
+  })
 })

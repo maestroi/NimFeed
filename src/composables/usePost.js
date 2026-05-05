@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useHub } from '../chain/hub.js'
 import { rpc } from '../chain/rpc.js'
@@ -36,6 +36,25 @@ export function usePost() {
   const signingStep = ref(0)
   const signingTotal = ref(0)
   const signingLabel = ref('')
+  const pendingChunkSession = ref(null)
+  const hasPendingChunkUpload = computed(() => !!pendingChunkSession.value)
+  const pendingChunkRemaining = computed(() => {
+    const s = pendingChunkSession.value
+    if (!s) return 0
+    return s.chunks.length - s.nextChunkIndex
+  })
+
+  function isPopupBlockedError(err) {
+    return String(err?.message || '').includes('Failed to open popup')
+  }
+
+  function sessionKey(text, replyToAuthor, replyToPostId) {
+    return JSON.stringify({
+      t: text,
+      a: replyToAuthor || null,
+      p: replyToPostId || null,
+    })
+  }
 
   async function claimProfile(username, displayName) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
@@ -88,11 +107,19 @@ export function usePost() {
       const raw = new TextEncoder().encode(text)
       const isReply = !!(replyToAuthor && replyToPostId)
       const limit = isReply ? INLINE_MAX_WITH_REPLY : INLINE_MAX_NO_REPLY
+      const key = sessionKey(text, replyToAuthor, replyToPostId)
+
+      if (pendingChunkSession.value && pendingChunkSession.value.key !== key) {
+        const remaining = pendingChunkRemaining.value
+        throw new Error(
+          `You have an unfinished chunked post (${remaining} chunk${remaining === 1 ? '' : 's'} left). Click Post again on the same text to continue, or cancel the pending upload.`,
+        )
+      }
 
       if (raw.length <= limit) {
         await _submitInline(text, isReply, replyToAuthor, replyToPostId)
       } else {
-        await _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId)
+        await _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId, key)
       }
       await startDeltaSync()
     } catch (e) {
@@ -100,11 +127,21 @@ export function usePost() {
       throw e
     } finally {
       sending.value = false
-      signingActive.value = false
-      signingStep.value = 0
-      signingTotal.value = 0
-      signingLabel.value = ''
+      if (!pendingChunkSession.value) {
+        signingActive.value = false
+        signingStep.value = 0
+        signingTotal.value = 0
+        signingLabel.value = ''
+      }
     }
+  }
+
+  function cancelPendingChunkUpload() {
+    pendingChunkSession.value = null
+    signingActive.value = false
+    signingStep.value = 0
+    signingTotal.value = 0
+    signingLabel.value = ''
   }
 
   async function _submitInline(text, isReply, replyToAuthor, replyToPostId) {
@@ -150,83 +187,137 @@ export function usePost() {
     }
   }
 
-  async function _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId) {
-    const comp = await deflateRaw(raw)
-    const payload = shouldCompress(raw, comp) ? comp : raw
-    const compressed = payload === comp
+  async function _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId, key) {
+    let session = pendingChunkSession.value
+    if (!session) {
+      const comp = await deflateRaw(raw)
+      const payload = shouldCompress(raw, comp) ? comp : raw
+      const compressed = payload === comp
 
-    const digest = await crypto.subtle.digest('SHA-256', payload)
-    const contentHash = new Uint8Array(digest).slice(0, 8)
-    const chunks = splitInto50ByteChunks(payload)
+      const digest = await crypto.subtle.digest('SHA-256', payload)
+      const contentHash = new Uint8Array(digest).slice(0, 8)
+      const chunks = splitInto50ByteChunks(payload)
 
-    const postIdBytes = generatePostId()
-    const postIdHex = postIdToHex(postIdBytes)
-    const authorBytes = nqToAddressBytes(auth.address)
-    const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
-    const derivedNq = addressBytesToNq(derivedBytes)
+      const postIdBytes = generatePostId()
+      const postIdHex = postIdToHex(postIdBytes)
+      const authorBytes = nqToAddressBytes(auth.address)
+      const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
+      const derivedNq = addressBytesToNq(derivedBytes)
 
-    const replyOpts = isReply
-      ? {
-          replyAuthor: nqToAddressBytes(replyToAuthor),
-          replyPostId: hexToPostIdBytes(replyToPostId),
-        }
-      : null
+      const replyOpts = isReply
+        ? {
+            replyAuthor: nqToAddressBytes(replyToAuthor),
+            replyPostId: hexToPostIdBytes(replyToPostId),
+          }
+        : null
 
-    const hashHex = Array.from(contentHash)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('')
+      const hashHex = Array.from(contentHash)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+
+      session = {
+        key,
+        text,
+        postIdBytes,
+        postIdHex,
+        derivedNq,
+        chunks,
+        compressed,
+        contentHash,
+        hashHex,
+        replyOpts,
+        replyToAuthor,
+        replyToPostId,
+        isReply,
+        startSubmitted: false,
+        nextChunkIndex: 0,
+      }
+      pendingChunkSession.value = session
+    }
 
     signingActive.value = true
-    signingTotal.value = 1 + chunks.length
-    signingStep.value = 1
-    signingLabel.value = 'POST_START'
+    signingTotal.value = 1 + session.chunks.length
 
-    const startPayload = buildPostStart(postIdBytes, chunks.length, compressed, contentHash, replyOpts)
-    const startSigned = await hub.signTransaction({
-      sender: auth.address,
-      recipient: POST_CATALOG_ADDRESS,
-      value: TX_VALUE_LUNA,
-      fee: 0,
-      extraData: startPayload,
-    })
+    if (!session.startSubmitted) {
+      signingStep.value = 1
+      signingLabel.value = 'POST_START'
+      const startPayload = buildPostStart(
+        session.postIdBytes,
+        session.chunks.length,
+        session.compressed,
+        session.contentHash,
+        session.replyOpts,
+      )
 
-    await putPost({
-      author: auth.address,
-      post_id: postIdHex,
-      tx_hash: null,
-      block_height: 0,
-      tx_index: 0,
-      content: text,
-      total_chunks: chunks.length,
-      chunks_received: 0,
-      compressed,
-      content_hash: hashHex,
-      is_inline: false,
-      is_reply: isReply,
-      reply_to_author: replyToAuthor,
-      reply_to_post_id: replyToPostId,
-      status: 'pending',
-      first_seen_at: 0,
-    })
+      let startSigned
+      try {
+        startSigned = await hub.signTransaction({
+          sender: auth.address,
+          recipient: POST_CATALOG_ADDRESS,
+          value: TX_VALUE_LUNA,
+          fee: 0,
+          extraData: startPayload,
+        })
+      } catch (err) {
+        if (isPopupBlockedError(err)) {
+          signingLabel.value = 'Popup blocked. Click Post to continue.'
+          throw new Error('Popup blocked while signing start transaction. Click Post again to continue.')
+        }
+        throw err
+      }
 
-    const startTxHash = await rpc.sendRawTransaction(startSigned.serializedTx)
-    if (startTxHash) {
-      await updatePost(auth.address, postIdHex, { tx_hash: startTxHash })
-    }
-
-    for (let i = 0; i < chunks.length; i++) {
-      signingStep.value = i + 2
-      signingLabel.value = `POST_CHUNK ${i + 1}/${chunks.length}`
-      const chunkPayload = buildPostChunk(postIdBytes, i, chunks[i])
-      const signed = await hub.signTransaction({
-        sender: auth.address,
-        recipient: derivedNq,
-        value: TX_VALUE_LUNA,
-        fee: 0,
-        extraData: chunkPayload,
+      await putPost({
+        author: auth.address,
+        post_id: session.postIdHex,
+        tx_hash: null,
+        block_height: 0,
+        tx_index: 0,
+        content: session.text,
+        total_chunks: session.chunks.length,
+        chunks_received: 0,
+        compressed: session.compressed,
+        content_hash: session.hashHex,
+        is_inline: false,
+        is_reply: session.isReply,
+        reply_to_author: session.replyToAuthor,
+        reply_to_post_id: session.replyToPostId,
+        status: 'pending',
+        first_seen_at: 0,
       })
-      await rpc.sendRawTransaction(signed.serializedTx)
+
+      const startTxHash = await rpc.sendRawTransaction(startSigned.serializedTx)
+      if (startTxHash) {
+        await updatePost(auth.address, session.postIdHex, { tx_hash: startTxHash })
+      }
+      session.startSubmitted = true
     }
+
+    for (let i = session.nextChunkIndex; i < session.chunks.length; i++) {
+      signingStep.value = i + 2
+      signingLabel.value = `POST_CHUNK ${i + 1}/${session.chunks.length}`
+      const chunkPayload = buildPostChunk(session.postIdBytes, i, session.chunks[i])
+      let signed
+      try {
+        signed = await hub.signTransaction({
+          sender: auth.address,
+          recipient: session.derivedNq,
+          value: TX_VALUE_LUNA,
+          fee: 0,
+          extraData: chunkPayload,
+        })
+      } catch (err) {
+        if (isPopupBlockedError(err)) {
+          session.nextChunkIndex = i
+          signingLabel.value = `Popup blocked on chunk ${i + 1}/${session.chunks.length}. Click Post to continue.`
+          throw new Error(`Popup blocked on chunk ${i + 1}/${session.chunks.length}. Click Post again to continue.`)
+        }
+        throw err
+      }
+      await rpc.sendRawTransaction(signed.serializedTx)
+      session.nextChunkIndex = i + 1
+    }
+
+    pendingChunkSession.value = null
   }
 
   return {
@@ -236,6 +327,9 @@ export function usePost() {
     signingStep,
     signingTotal,
     signingLabel,
+    hasPendingChunkUpload,
+    pendingChunkRemaining,
+    cancelPendingChunkUpload,
     submitPost,
     claimProfile,
     txCount,

@@ -45,29 +45,8 @@ export class IndexerService extends EventTarget {
 
   async syncDerivedAddress(derivedNq) {
     const scopeKey = `derived:${normalizeNq(derivedNq)}`
-    const state = await getSyncState(scopeKey)
-    if (state?.fully_synced) return
-
-    let cursor = null
-    while (true) {
-      const txs = await this.rpc.getTransactionsByAddress(derivedNq, SYNC_PAGE_SIZE, cursor)
-      if (!txs.length) break
-      debug('syncDerivedAddress:page', { derivedNq, txs: txs.length })
-      let processed = 0
-      for (const raw of txs) {
-        await processDerivedAddressTx(this.rpc.normalizeTransaction(raw), derivedNq)
-        if (++processed % SYNC_TX_BUDGET_PER_TICK === 0) await new Promise((r) => setTimeout(r, 0))
-      }
-      cursor = txs[txs.length - 1].hash
-      if (txs.length < SYNC_PAGE_SIZE) {
-        await putSyncState({
-          scope_key: scopeKey,
-          fully_synced: true,
-          last_synced_at: Date.now(),
-        })
-        break
-      }
-    }
+    debug('syncDerivedAddress:start', { derivedNq })
+    await this._syncScoped(scopeKey, derivedNq, (tx) => processDerivedAddressTx(tx, derivedNq))
     debug('syncDerivedAddress:done', { derivedNq })
   }
 
@@ -88,19 +67,31 @@ export class IndexerService extends EventTarget {
     await this.syncFollowCatalog()
 
     const pending = await db.posts.where('status').equals('pending').toArray()
+    const derivedTargets = new Set()
     for (const post of pending) {
       try {
         const authorBytes = nqToAddressBytes(post.author)
         const postIdBytes = hexToPostIdBytes(post.post_id)
         const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
-        const derivedNq = addressBytesToNq(derivedBytes)
-        this.syncDerivedAddress(derivedNq).catch(() => {})
+        derivedTargets.add(addressBytesToNq(derivedBytes))
       } catch {
-        /* ignore */
+        /* ignore malformed post keys */
       }
     }
 
-    debug('startDeltaSync:done', { pendingPosts: pending.length, ms: Math.round(performance.now() - t0) })
+    for (const derivedNq of derivedTargets) {
+      try {
+        await this.syncDerivedAddress(derivedNq)
+      } catch {
+        /* ignore transient derived scope failures */
+      }
+    }
+
+    debug('startDeltaSync:done', {
+      pendingPosts: pending.length,
+      derivedScopes: derivedTargets.size,
+      ms: Math.round(performance.now() - t0),
+    })
     this.dispatchEvent(new CustomEvent('catalog:updated'))
   }
 
