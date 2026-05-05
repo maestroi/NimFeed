@@ -1,0 +1,48 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_NIMFEED_MAINNET_CATALOG_ADDRESS: 'NQ19 LLHP G0ML 37RM 5JJD RME1 GLFY 75PQ 402Y'
+          VITE_NIMFEED_MAINNET_BOOTSTRAP_ADDRESS: 'NQ79 FEX6 3EN3 ALNX 9U6Y U7UB 4RHS 13SC 7Y1E'
+          VITE_NIMFEED_NETWORK: 'mainnet'
+          VITE_NIMFEED_DATA_RECIPIENT_ADDRESS: 'NQ79 FEX6 3EN3 ALNX 9U6Y U7UB 4RHS 13SC 7Y1E'
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

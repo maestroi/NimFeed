@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a working on-chain microblogging MVP on Nimiq 2.0 Albatross — Hub login, user registration, post creation, global feed, and profile view, all backed by a browser IndexedDB indexer with no backend.
+**Goal:** Build a working on-chain microblogging MVP on Nimiq 2.0 Albatross — Hub login, profile claim, post creation (inline + chunked), global feed, and profile view, all backed by a browser IndexedDB indexer with no backend.
 
-**Architecture:** Hybrid catalog + per-user namespace. A single catalog address receives USER_REG, USERNAME_CLAIM, and POST_ANNOUNCE events. All post data (POST_START, POST_CHUNK, PROFILE_SET) travels as self-transactions to the user's own wallet address. The browser streams and indexes transactions lazily into IndexedDB via a dual-cursor sync strategy.
+**Architecture:** Post catalog + derived post addresses. A single POST_CATALOG_ADDRESS receives PROFILE_CLAIM, POST_INLINE, and POST_START events. POST_CHUNK transactions go to a deterministic derived address per post. No self-transactions. No per-user address sync.
 
-**Tech Stack:** Vue 3.5, Vite 8, Tailwind CSS 4, Pinia 3, Dexie 4, @nimiq/hub-api ^1.13, plain JavaScript (ES2022), Vitest for unit tests.
+**Tech Stack:** Vue 3.5, Vite 8, Tailwind CSS 4, Pinia 3, Dexie 4, @nimiq/hub-api ^1.13, plain JavaScript (ES2022), Vitest.
 
 **Spec:** `docs/superpowers/specs/2026-05-05-nimfeed-design.md`
 
@@ -22,51 +22,54 @@ src/
 ├── style.css
 │
 ├── protocol/
-│   ├── constants.js          new — magic bytes, type codes, addresses, limits
-│   ├── utils.js              new — hexToBytes, bytesToHex, addressBytesToNq, nqToAddressBytes, postIdToHex, generatePostId
-│   ├── encoder.js            new — buildUserReg, buildUsernameClaim, buildProfileSet, buildPostStart, buildPostChunk, buildPostAnnounce
-│   ├── decoder.js            new — parseTransaction → typed event objects
-│   └── compression.js        new — deflateRaw, inflateRaw, isCompressionSupported
+│   ├── constants.js         POST_CATALOG_ADDRESS, FOLLOW_CATALOG_ADDRESS, magic, type codes
+│   ├── utils.js             hexToBytes, bytesToHex, postIdToHex, generatePostId, trimNulls
+│   ├── address.js           derivePostAddress, nqToAddressBytes, addressBytesToNq
+│   ├── encoder.js           buildProfileClaim, buildPostInline, buildPostStart, buildPostChunk
+│   ├── decoder.js           parseTransaction → typed event objects
+│   └── compression.js       deflateRaw, inflateRaw, isCompressionSupported
 │
 ├── chain/
-│   ├── rpc.js                new — NimiqRPC class (ported + extended from nimiq-doom)
-│   └── hub.js                new — useHub composable (ported + extended from nimiq-2048)
+│   ├── rpc.js               NimiqRPC — getTransactionsByAddress, sendRawTransaction
+│   └── hub.js               useHub — signTransaction
 │
 ├── db/
-│   ├── schema.js             new — Dexie instance with all 8 stores
-│   └── queries.js            new — typed query helpers
+│   ├── schema.js            Dexie instance: profile_claims, users, posts, post_chunks, catalog_refs, sync_state
+│   └── queries.js           typed query helpers
 │
 ├── indexer/
-│   ├── handlers.js           new — handleUserReg, handleUsernameClaim, handleProfileSet, handlePostStart, handlePostChunk, handlePostAnnounce
-│   ├── assembler.js          new — tryAssemble (chunk concat + hash verify + decompress)
-│   ├── IndexerService.js     new — singleton sync engine
-│   └── useIndexer.js         new — Vue composable wrapping IndexerService
+│   ├── handlers.js          handleProfileClaim, handlePostInline, handlePostStart, handlePostChunk
+│   ├── assembler.js         tryAssemble
+│   ├── IndexerService.js    singleton — syncPostCatalog, syncDerivedAddress, startDeltaSync
+│   └── useIndexer.js        Vue composable
 │
 ├── stores/
-│   ├── auth.js               new — Pinia: current user address, profile, registered state
-│   ├── feed.js               new — Pinia: active feed slice (≤50 posts)
-│   └── ui.js                 new — Pinia: modal state, composer open, filter settings
+│   ├── auth.js              Hub login state, current user profile
+│   ├── feed.js              active feed slice
+│   └── ui.js                modal state, composer open, filters
 │
 ├── composables/
-│   ├── usePost.js            new — encode → sign → broadcast → watch confirmation
-│   ├── useFeed.js            new — global feed pagination + reactive updates
-│   └── useProfile.js         new — profile resolution + edit flow
+│   ├── usePost.js           inline vs chunked, encode → sign → broadcast → watch
+│   ├── useFeed.js           global feed pagination
+│   └── useProfile.js        profile resolution
 │
 └── components/
-    ├── layout/AppShell.vue   new — top nav, outlet, bottom nav
-    ├── layout/BottomNav.vue  new — Home / Write / Profile tabs
-    ├── auth/LoginModal.vue   new — Hub login flow
-    ├── auth/WalletButton.vue new — connect/disconnect button
-    ├── feed/FeedView.vue     new — global feed container
-    ├── feed/PostCard.vue     new — single post display
-    ├── feed/PostSkeleton.vue new — loading placeholder
-    ├── post/PostComposer.vue new — write + submit post
+    ├── layout/AppShell.vue
+    ├── layout/BottomNav.vue
+    ├── auth/LoginModal.vue
+    ├── auth/WalletButton.vue
+    ├── feed/FeedView.vue
+    ├── feed/PostCard.vue
+    ├── feed/PostSkeleton.vue
+    ├── post/PostComposer.vue
     └── profile/
-        ├── ProfileView.vue   new — user profile page
-        └── ProfileCard.vue   new — profile header card
+        ├── ProfileView.vue
+        └── ProfileCard.vue
 
 tests/
+├── setup.js
 ├── protocol/utils.test.js
+├── protocol/address.test.js
 ├── protocol/encoder.test.js
 ├── protocol/decoder.test.js
 ├── protocol/compression.test.js
@@ -78,14 +81,7 @@ tests/
 
 ## Task 1: Project Scaffold
 
-**Files:**
-- Create: `package.json`
-- Create: `vite.config.js`
-- Create: `index.html`
-- Create: `src/style.css`
-- Create: `src/main.js`
-- Create: `src/App.vue`
-- Create: `src/router.js`
+**Files:** `package.json`, `vite.config.js`, `index.html`, `src/style.css`, `src/main.js`, `src/App.vue`, `src/router.js`
 
 - [ ] **Step 1: Create package.json**
 
@@ -149,15 +145,15 @@ import 'fake-indexeddb/auto'
 ```html
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NimFeed</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NimFeed</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
 </html>
 ```
 
@@ -167,24 +163,7 @@ import 'fake-indexeddb/auto'
 @import "tailwindcss";
 ```
 
-- [ ] **Step 6: Create src/router.js**
-
-```javascript
-import { createRouter, createWebHistory } from 'vue-router'
-
-const routes = [
-  { path: '/',          component: () => import('./components/feed/FeedView.vue') },
-  { path: '/profile/:address', component: () => import('./components/profile/ProfileView.vue') },
-  { path: '/post',      component: () => import('./components/post/PostComposer.vue') },
-]
-
-export const router = createRouter({
-  history: createWebHistory(),
-  routes,
-})
-```
-
-- [ ] **Step 7: Create src/main.js**
+- [ ] **Step 6: Create src/main.js**
 
 ```javascript
 import { createApp } from 'vue'
@@ -196,172 +175,116 @@ import './style.css'
 createApp(App).use(createPinia()).use(router).mount('#app')
 ```
 
+- [ ] **Step 7: Create src/router.js**
+
+```javascript
+import { createRouter, createWebHistory } from 'vue-router'
+
+const routes = [
+  { path: '/',                 component: () => import('./components/feed/FeedView.vue') },
+  { path: '/profile/:address', component: () => import('./components/profile/ProfileView.vue') },
+]
+
+export const router = createRouter({
+  history: createWebHistory(),
+  routes,
+})
+```
+
 - [ ] **Step 8: Create src/App.vue**
 
 ```vue
 <script setup>
 import AppShell from './components/layout/AppShell.vue'
 </script>
-
 <template>
   <AppShell />
 </template>
 ```
 
-- [ ] **Step 9: Install dependencies**
+- [ ] **Step 9: Install dependencies and verify scaffold compiles**
 
 ```bash
 npm install
+npm run dev
 ```
 
-Expected: `node_modules/` created, no errors.
+Expected: Dev server starts, browser shows blank app shell (no errors in console).
 
-- [ ] **Step 10: Verify test runner**
-
-```bash
-npm test
-```
-
-Expected: `No test files found` (zero failures — runner works).
-
-- [ ] **Step 11: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add package.json vite.config.js index.html src/ tests/
-git commit -m "feat: scaffold Vue 3 + Vite + Tailwind + Vitest project"
+git add package.json vite.config.js index.html src/ tests/setup.js
+git commit -m "chore: project scaffold — Vue 3, Vite, Tailwind, Pinia, Dexie"
 ```
 
 ---
 
-## Task 2: Protocol Constants + Binary Utilities
+## Task 2: Protocol — Utils and Address
 
-**Files:**
-- Create: `src/protocol/constants.js`
-- Create: `src/protocol/utils.js`
-- Create: `tests/protocol/utils.test.js`
+**Files:** `src/protocol/utils.js`, `src/protocol/address.js`, `tests/protocol/utils.test.js`, `tests/protocol/address.test.js`
 
-- [ ] **Step 1: Create src/protocol/constants.js**
-
-```javascript
-export const MAGIC_0 = 0x4E  // 'N'
-export const MAGIC_1 = 0x46  // 'F'
-export const VERSION  = 0x01
-
-export const TYPES = Object.freeze({
-  USER_REG:       0x01,
-  USERNAME_CLAIM: 0x02,
-  PROFILE_SET:    0x03,
-  POST_START:     0x04,
-  POST_CHUNK:     0x05,
-  POST_ANNOUNCE:  0x06,
-  FOLLOW:         0x07,
-  UNFOLLOW:       0x08,
-  LIKE:           0x09,
-  UNLIKE:         0x0A,
-})
-
-// Set these to real addresses before deploying.
-// Generate a dedicated wallet for the catalog and never use it for anything else.
-export const CATALOG_ADDRESS         = 'NQ32 0VD4 26TR 1394 KXBJ 862C NFKG 61M5 GFJ0'  // testnet placeholder
-export const MAINNET_CATALOG_ADDRESS = ''  // fill before mainnet launch
-
-export const TX_VALUE_LUNA                  = 1
-export const CHUNK_SIZE                     = 50
-export const MAX_POST_CHARS                 = 280
-export const MISSING_CHUNKS_BLOCK_WINDOW    = 48
-export const FEED_PAGE_SIZE                 = 20
-export const TENTATIVE_BLOCK_CONFIRMATIONS  = 10
-export const SYNC_PAGE_SIZE                 = 500
-export const SYNC_TX_BUDGET_PER_TICK        = 2000
-export const SYNC_WALL_CLOCK_BUDGET_MS      = 10_000
-export const USER_SYNC_STALE_THRESHOLD_MS   = 5 * 60 * 1000
-```
-
-- [ ] **Step 2: Write failing tests for utils**
+- [ ] **Step 1: Write failing tests for utils**
 
 Create `tests/protocol/utils.test.js`:
 
 ```javascript
 import { describe, it, expect } from 'vitest'
-import {
-  hexToBytes, bytesToHex,
-  postIdToHex, generatePostId,
-  normalizeUsername,
-  addressBytesToNq, nqToAddressBytes,
-} from '../../src/protocol/utils.js'
+import { hexToBytes, bytesToHex, postIdToHex, generatePostId, trimNulls } from '../../src/protocol/utils.js'
 
-describe('hexToBytes', () => {
-  it('converts hex string to Uint8Array', () => {
-    expect(hexToBytes('4e46')).toEqual(new Uint8Array([0x4e, 0x46]))
-  })
-  it('handles empty string', () => {
-    expect(hexToBytes('')).toEqual(new Uint8Array([]))
-  })
-})
-
-describe('bytesToHex', () => {
-  it('converts Uint8Array to lowercase hex', () => {
-    expect(bytesToHex(new Uint8Array([0x4e, 0x46]))).toBe('4e46')
+describe('hexToBytes / bytesToHex', () => {
+  it('round-trips', () => {
+    const bytes = new Uint8Array([0x4e, 0x46, 0x01, 0x03])
+    expect(hexToBytes(bytesToHex(bytes))).toEqual(bytes)
   })
 })
 
 describe('postIdToHex', () => {
-  it('produces a 16-char string', () => {
-    const buf = generatePostId()
-    expect(postIdToHex(buf)).toHaveLength(16)
-  })
-  it('sorts chronologically as a string', () => {
-    const buf1 = new ArrayBuffer(8)
-    const buf2 = new ArrayBuffer(8)
-    const v1 = new DataView(buf1)
-    const v2 = new DataView(buf2)
-    v1.setUint32(0, 1000, true)
-    v2.setUint32(0, 2000, true)
-    expect(postIdToHex(buf1) < postIdToHex(buf2)).toBe(true)
+  it('produces 16-char zero-padded big-endian hex', () => {
+    const bytes = new Uint8Array(8).fill(0)
+    bytes[0] = 0x01
+    const hex = postIdToHex(bytes)
+    expect(hex).toHaveLength(16)
+    // big-endian: byte[0] is most significant
+    expect(hex.slice(0, 2)).toBe('01')
   })
 })
 
-describe('normalizeUsername', () => {
-  it('lowercases and strips invalid chars', () => {
-    expect(normalizeUsername('Hello_World!')).toBe('hello_world')
+describe('generatePostId', () => {
+  it('returns 8 bytes', () => {
+    const id = generatePostId()
+    expect(id).toBeInstanceOf(Uint8Array)
+    expect(id.byteLength).toBe(8)
   })
-  it('returns null for too-short username', () => {
-    expect(normalizeUsername('ab')).toBeNull()
-  })
-  it('returns null for too-long username', () => {
-    expect(normalizeUsername('a'.repeat(32))).toBeNull()
-  })
-  it('allows digits and underscores', () => {
-    expect(normalizeUsername('user_123')).toBe('user_123')
+
+  it('embeds unix seconds in first 4 bytes LE', () => {
+    const before = Math.floor(Date.now() / 1000)
+    const id = generatePostId()
+    const view = new DataView(id.buffer)
+    const secs = view.getUint32(0, true)
+    expect(secs).toBeGreaterThanOrEqual(before)
+    expect(secs).toBeLessThanOrEqual(before + 2)
   })
 })
 
-describe('addressBytesToNq / nqToAddressBytes', () => {
-  it('round-trips a 20-byte address', () => {
-    const bytes = new Uint8Array(20).fill(1)
-    const nq = addressBytesToNq(bytes)
-    expect(nq).toMatch(/^NQ/)
-    expect(nqToAddressBytes(nq)).toEqual(bytes)
+describe('trimNulls', () => {
+  it('trims trailing null bytes', () => {
+    const buf = new Uint8Array([0x68, 0x69, 0x00, 0x00])
+    expect(trimNulls(buf)).toEqual(new Uint8Array([0x68, 0x69]))
   })
 })
 ```
 
-- [ ] **Step 3: Run tests — expect failures**
+- [ ] **Step 2: Run — expect failure**
 
 ```bash
 npm test tests/protocol/utils.test.js
 ```
 
-Expected: FAIL — `utils.js` not found.
-
-- [ ] **Step 4: Create src/protocol/utils.js**
+- [ ] **Step 3: Create src/protocol/utils.js**
 
 ```javascript
-// Base32 alphabet used by Nimiq (excludes I, O, W, Z)
-const BASE32_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVXY'
-
 export function hexToBytes(hex) {
-  if (!hex || hex.length === 0) return new Uint8Array(0)
   const bytes = new Uint8Array(hex.length / 2)
   for (let i = 0; i < bytes.length; i++) {
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
@@ -373,13 +296,18 @@ export function bytesToHex(bytes) {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Converts an 8-byte post_id buffer (LE u32 seconds + LE u32 random)
-// to a 16-char big-endian hex string suitable for alphabetical sort.
-export function postIdToHex(buf) {
-  const view = new DataView(buf instanceof ArrayBuffer ? buf : buf.buffer)
-  const seconds = view.getUint32(0, true)
-  const random  = view.getUint32(4, true)
-  return seconds.toString(16).padStart(8, '0') + random.toString(16).padStart(8, '0')
+export function postIdToHex(bytes8) {
+  // Store as big-endian hex for lexicographic sort = chronological sort
+  const reversed = new Uint8Array(8)
+  for (let i = 0; i < 8; i++) reversed[i] = bytes8[7 - i]
+  return bytesToHex(reversed)
+}
+
+export function hexToPostIdBytes(hex16) {
+  const reversed = hexToBytes(hex16)
+  const bytes = new Uint8Array(8)
+  for (let i = 0; i < 8; i++) bytes[i] = reversed[7 - i]
+  return bytes
 }
 
 export function generatePostId() {
@@ -387,503 +315,556 @@ export function generatePostId() {
   const view = new DataView(buf)
   view.setUint32(0, Math.floor(Date.now() / 1000), true)
   view.setUint32(4, crypto.getRandomValues(new Uint32Array(1))[0], true)
-  return buf
+  return new Uint8Array(buf)
+}
+
+export function trimNulls(bytes) {
+  let end = bytes.length
+  while (end > 0 && bytes[end - 1] === 0) end--
+  return bytes.slice(0, end)
 }
 
 export function normalizeUsername(raw) {
-  if (!raw) return null
   const s = raw.toLowerCase().replace(/[^a-z0-9_]/g, '')
   if (s.length < 3 || s.length > 31) return null
   return s
 }
+```
 
-// Converts 20 raw address bytes → NQ-format string (base32 + IBAN mod-97 check)
-export function addressBytesToNq(bytes) {
-  let b32 = ''
+- [ ] **Step 4: Write failing tests for address**
+
+Create `tests/protocol/address.test.js`:
+
+```javascript
+import { describe, it, expect } from 'vitest'
+import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../../src/protocol/address.js'
+
+describe('nqToAddressBytes / addressBytesToNq', () => {
+  it('round-trips a known NQ address', () => {
+    // Use a known 20-zero-byte address
+    const bytes = new Uint8Array(20)
+    const nq = addressBytesToNq(bytes)
+    expect(nq).toMatch(/^NQ/)
+    expect(nqToAddressBytes(nq)).toEqual(bytes)
+  })
+})
+
+describe('derivePostAddress', () => {
+  it('returns 20 bytes', async () => {
+    const author = new Uint8Array(20).fill(1)
+    const postId = new Uint8Array(8).fill(2)
+    const result = await derivePostAddress(author, postId)
+    expect(result).toBeInstanceOf(Uint8Array)
+    expect(result.byteLength).toBe(20)
+  })
+
+  it('is deterministic', async () => {
+    const author = new Uint8Array(20).fill(3)
+    const postId = new Uint8Array(8).fill(4)
+    const a = await derivePostAddress(author, postId)
+    const b = await derivePostAddress(author, postId)
+    expect(a).toEqual(b)
+  })
+
+  it('differs for different authors', async () => {
+    const postId = new Uint8Array(8).fill(5)
+    const a = await derivePostAddress(new Uint8Array(20).fill(1), postId)
+    const b = await derivePostAddress(new Uint8Array(20).fill(2), postId)
+    expect(a).not.toEqual(b)
+  })
+
+  it('differs for different post ids', async () => {
+    const author = new Uint8Array(20).fill(1)
+    const a = await derivePostAddress(author, new Uint8Array(8).fill(1))
+    const b = await derivePostAddress(author, new Uint8Array(8).fill(2))
+    expect(a).not.toEqual(b)
+  })
+})
+```
+
+- [ ] **Step 5: Create src/protocol/address.js**
+
+```javascript
+// Nimiq NQ address uses a custom base32 alphabet and a checksum.
+// This minimal implementation covers the NimFeed use case.
+// For production, replace with @nimiq/utils if available.
+
+const NQ_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVXY'
+
+function toBase32(bytes) {
+  let bits = 0, value = 0, output = ''
   for (const byte of bytes) {
-    b32 += BASE32_ALPHABET[(byte >> 3) & 0x1F]
-    b32 += BASE32_ALPHABET[byte & 0x07]  // simplified — see full impl below
+    value = (value << 8) | byte
+    bits += 8
+    while (bits >= 5) {
+      output += NQ_ALPHABET[(value >>> (bits - 5)) & 31]
+      bits -= 5
+    }
   }
-  // Full Nimiq base32 encoding (5-bit groups)
-  const bits = Array.from(bytes).map(b => b.toString(2).padStart(8, '0')).join('')
-  let base32 = ''
-  for (let i = 0; i < bits.length; i += 5) {
-    base32 += BASE32_ALPHABET[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)]
-  }
-  // Compute IBAN mod-97 check digits
-  const expanded = (base32 + 'NQ00').split('').map(c => {
-    const i = BASE32_ALPHABET.indexOf(c)
-    return i >= 0 ? i.toString() : ({ N: '23', Q: '26' }[c] ?? c)
-  }).join('')
-  const check = 98 - mod97(expanded)
-  return `NQ${String(check).padStart(2, '0')} ${base32.match(/.{1,4}/g).join(' ')}`
+  if (bits > 0) output += NQ_ALPHABET[(value << (5 - bits)) & 31]
+  return output
 }
 
-// Converts NQ-format string → 20 raw address bytes
+function fromBase32(str) {
+  const bytes = []
+  let bits = 0, value = 0
+  for (const ch of str) {
+    const idx = NQ_ALPHABET.indexOf(ch)
+    if (idx === -1) continue
+    value = (value << 5) | idx
+    bits += 5
+    if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 0xff); bits -= 8 }
+  }
+  return new Uint8Array(bytes)
+}
+
+function luhnChecksum(str) {
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  let factor = 1, sum = 0, n = alphabet.length
+  for (let i = str.length - 1; i >= 0; i--) {
+    let addend = factor * alphabet.indexOf(str[i])
+    factor = factor === 2 ? 1 : 2
+    addend = Math.floor(addend / n) + (addend % n)
+    sum += addend
+  }
+  return (n - (sum % n)) % n
+}
+
+export function addressBytesToNq(bytes20) {
+  const hex    = Array.from(bytes20).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+  const b32    = toBase32(bytes20).padStart(32, '0')
+  const check  = String(luhnChecksum('NQ00' + b32)).padStart(2, '0')
+  const groups = b32.match(/.{1,4}/g).join(' ')
+  return `NQ${check} ${groups}`
+}
+
 export function nqToAddressBytes(nq) {
-  const clean = nq.replace(/\s/g, '').slice(4)  // strip "NQ" + 2 check digits
-  const bits = clean.split('').map(c => {
-    const i = BASE32_ALPHABET.indexOf(c)
-    return i.toString(2).padStart(5, '0')
-  }).join('').slice(0, 160)
-  const bytes = new Uint8Array(20)
-  for (let i = 0; i < 20; i++) {
-    bytes[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2)
-  }
-  return bytes
+  const clean = nq.replace(/\s/g, '').slice(4)  // strip "NQxx"
+  return fromBase32(clean).slice(0, 20)
 }
 
-function mod97(str) {
-  let remainder = 0
-  for (const c of str) {
-    remainder = (remainder * 10 + parseInt(c, 10)) % 97
-  }
-  return remainder
+export async function derivePostAddress(authorAddressBytes20, postIdBytes8) {
+  const salt = new TextEncoder().encode('nimfeed')
+  const seed = new Uint8Array(20 + 8 + salt.length)
+  seed.set(authorAddressBytes20, 0)
+  seed.set(postIdBytes8, 20)
+  seed.set(salt, 28)
+  const hash = await crypto.subtle.digest('SHA-256', seed)
+  return new Uint8Array(hash).slice(0, 20)
 }
 ```
 
-- [ ] **Step 5: Run tests — expect pass**
+- [ ] **Step 6: Run tests — expect pass**
 
 ```bash
-npm test tests/protocol/utils.test.js
+npm test tests/protocol/utils.test.js tests/protocol/address.test.js
 ```
 
-Expected: All pass.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/protocol/constants.js src/protocol/utils.js tests/protocol/utils.test.js tests/setup.js
-git commit -m "feat: protocol constants and binary utilities"
+git add src/protocol/utils.js src/protocol/address.js tests/protocol/
+git commit -m "feat: protocol utils and address derivation (TDD)"
 ```
 
 ---
 
-## Task 3: Protocol Encoder
+## Task 3: Protocol — Constants, Encoder, Decoder
 
-**Files:**
-- Create: `src/protocol/encoder.js`
-- Create: `tests/protocol/encoder.test.js`
+**Files:** `src/protocol/constants.js`, `src/protocol/encoder.js`, `src/protocol/decoder.js`, `tests/protocol/encoder.test.js`, `tests/protocol/decoder.test.js`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Create src/protocol/constants.js**
+
+```javascript
+export const MAGIC         = new Uint8Array([0x4e, 0x46])  // "NF"
+export const VERSION       = 0x01
+
+// Replace with real testnet/mainnet addresses before deployment
+export const POST_CATALOG_ADDRESS   = 'NQ00 0000 0000 0000 0000 0000 0000 0000 POST'
+export const FOLLOW_CATALOG_ADDRESS = 'NQ00 0000 0000 0000 0000 0000 0000 0FLWW'
+
+export const TYPES = {
+  PROFILE_CLAIM: 0x01,
+  POST_INLINE:   0x02,
+  POST_START:    0x03,
+  POST_CHUNK:    0x04,
+  FOLLOW:        0x05,
+  UNFOLLOW:      0x06,
+}
+
+export const TX_VALUE_LUNA  = 1     // 1 Luna per tx
+export const FEED_PAGE_SIZE = 20
+export const CHUNK_DATA_SIZE = 50
+export const INLINE_MAX_NO_REPLY = 51
+export const INLINE_MAX_WITH_REPLY = 23
+```
+
+- [ ] **Step 2: Write failing encoder tests**
 
 Create `tests/protocol/encoder.test.js`:
 
 ```javascript
 import { describe, it, expect } from 'vitest'
 import {
-  buildUserReg, buildUsernameClaim, buildProfileSet,
-  buildPostStart, buildPostChunk, buildPostAnnounce,
+  buildProfileClaim,
+  buildPostInline,
+  buildPostStart,
+  buildPostChunk,
 } from '../../src/protocol/encoder.js'
-import { TYPES, VERSION } from '../../src/protocol/constants.js'
-import { generatePostId } from '../../src/protocol/utils.js'
+import { TYPES } from '../../src/protocol/constants.js'
 
-function header(bytes) {
-  return { magic: String.fromCharCode(bytes[0], bytes[1]), version: bytes[2], type: bytes[3] }
-}
+const HEADER_SIZE = 4
 
-describe('buildUserReg', () => {
-  it('produces 64 bytes with correct header', () => {
-    const out = buildUserReg()
-    expect(out).toHaveLength(64)
-    expect(header(out)).toEqual({ magic: 'NF', version: VERSION, type: TYPES.USER_REG })
+function header(bytes) { return { magic: bytes.slice(0, 2), version: bytes[2], type: bytes[3] } }
+
+describe('buildProfileClaim', () => {
+  it('produces 64-byte payload with correct header', () => {
+    const bytes = buildProfileClaim('alice', 'Alice A')
+    expect(bytes.byteLength).toBe(64)
+    const h = header(bytes)
+    expect(h.magic).toEqual(new Uint8Array([0x4e, 0x46]))
+    expect(h.version).toBe(0x01)
+    expect(h.type).toBe(TYPES.PROFILE_CLAIM)
+  })
+
+  it('null-terminates username at byte 35', () => {
+    const bytes = buildProfileClaim('alice', 'Alice')
+    // username field is bytes [4-35] = 32 bytes
+    const usernameField = bytes.slice(4, 36)
+    // 'alice' = 5 chars; byte 9 should be 0x00
+    expect(usernameField[5]).toBe(0x00)
+  })
+
+  it('normalizes username to lowercase', () => {
+    const bytes = buildProfileClaim('ALICE', 'Alice')
+    const username = new TextDecoder().decode(bytes.slice(4, 9))
+    expect(username).toBe('alice')
   })
 })
 
-describe('buildUsernameClaim', () => {
-  it('encodes normalized username starting at byte 4', () => {
-    const out = buildUsernameClaim('Alice_99')
-    expect(out).toHaveLength(64)
-    expect(header(out).type).toBe(TYPES.USERNAME_CLAIM)
-    const raw = new TextDecoder().decode(out.slice(4, 36)).replace(/\0/g, '')
-    expect(raw).toBe('alice_99')
+describe('buildPostInline', () => {
+  it('produces 64-byte payload', () => {
+    const bytes = buildPostInline(new Uint8Array(8), 'hello')
+    expect(bytes.byteLength).toBe(64)
+    expect(bytes[3]).toBe(TYPES.POST_INLINE)
   })
-  it('throws on invalid username', () => {
-    expect(() => buildUsernameClaim('ab')).toThrow()
-  })
-})
 
-describe('buildProfileSet', () => {
-  it('sets flags correctly', () => {
-    const out = buildProfileSet({ displayName: 'Alice', bio: 'hello' })
-    expect(out[4]).toBe(0x03)  // bit0 + bit1
-  })
-  it('encodes display_name at bytes 5-28', () => {
-    const out = buildProfileSet({ displayName: 'Alice', bio: null })
-    const name = new TextDecoder().decode(out.slice(5, 29)).replace(/\0/g, '')
-    expect(name).toBe('Alice')
+  it('sets is_reply flag correctly', () => {
+    const noReply = buildPostInline(new Uint8Array(8), 'hi')
+    expect(noReply[12] & 0x01).toBe(0)
+
+    const replyAuthor = new Uint8Array(20).fill(1)
+    const replyPostId = new Uint8Array(8).fill(2)
+    const withReply = buildPostInline(new Uint8Array(8), 'hi', { replyAuthor, replyPostId })
+    expect(withReply[12] & 0x01).toBe(1)
   })
 })
 
 describe('buildPostStart', () => {
-  it('produces 64 bytes', () => {
-    const postIdBuf = generatePostId()
-    const out = buildPostStart({
-      postIdBuf,
-      totalChunks: 3,
-      flags: 0x01,
-      contentHash: new Uint8Array(8).fill(0xAB),
-      replyToPostId: null,
-      replyToAuthor: null,
-    })
-    expect(out).toHaveLength(64)
-    expect(out[12]).toBe(3)    // totalChunks
-    expect(out[13]).toBe(0x01) // flags compressed
+  it('produces 64-byte payload with total_chunks', () => {
+    const postId     = new Uint8Array(8).fill(7)
+    const hash       = new Uint8Array(8).fill(0xff)
+    const bytes      = buildPostStart(postId, 3, false, hash)
+    expect(bytes.byteLength).toBe(64)
+    expect(bytes[3]).toBe(TYPES.POST_START)
+    expect(bytes[12]).toBe(3)  // total_chunks
+  })
+
+  it('sets compressed flag in byte 13', () => {
+    const postId = new Uint8Array(8)
+    const hash   = new Uint8Array(8)
+    const noComp = buildPostStart(postId, 1, false, hash)
+    const comp   = buildPostStart(postId, 1, true, hash)
+    expect(noComp[13] & 0x01).toBe(0)
+    expect(comp[13] & 0x01).toBe(1)
   })
 })
 
 describe('buildPostChunk', () => {
-  it('encodes chunk_index and data_len', () => {
-    const data = new Uint8Array(50).fill(0xFF)
-    const out = buildPostChunk({ postIdBuf: generatePostId(), chunkIndex: 2, data })
-    expect(out[12]).toBe(2)   // chunk_index
-    expect(out[13]).toBe(50)  // data_len
-    expect(out[14]).toBe(0xFF)
-  })
-  it('clamps data to 50 bytes', () => {
-    const data = new Uint8Array(60).fill(1)
-    const out = buildPostChunk({ postIdBuf: generatePostId(), chunkIndex: 0, data })
-    expect(out[13]).toBe(50)
-  })
-})
-
-describe('buildPostAnnounce', () => {
-  it('encodes post_id at bytes 4-11', () => {
-    const postIdBuf = generatePostId()
-    const out = buildPostAnnounce({ postIdBuf })
-    expect(header(out).type).toBe(TYPES.POST_ANNOUNCE)
-    expect(out.slice(4, 12)).toEqual(new Uint8Array(postIdBuf))
+  it('produces 64-byte payload with chunk_index and data_len', () => {
+    const postId = new Uint8Array(8).fill(9)
+    const data   = new Uint8Array(30).fill(0xaa)
+    const bytes  = buildPostChunk(postId, 2, data)
+    expect(bytes.byteLength).toBe(64)
+    expect(bytes[3]).toBe(TYPES.POST_CHUNK)
+    expect(bytes[12]).toBe(2)   // chunk_index
+    expect(bytes[13]).toBe(30)  // data_len
+    expect(bytes.slice(14, 44)).toEqual(data)
   })
 })
 ```
 
-- [ ] **Step 2: Run — expect failures**
+- [ ] **Step 3: Run — expect failure**
 
 ```bash
 npm test tests/protocol/encoder.test.js
 ```
 
-Expected: FAIL — `encoder.js` not found.
-
-- [ ] **Step 3: Create src/protocol/encoder.js**
+- [ ] **Step 4: Create src/protocol/encoder.js**
 
 ```javascript
-import { MAGIC_0, MAGIC_1, VERSION, TYPES } from './constants.js'
+import { MAGIC, VERSION, TYPES, CHUNK_DATA_SIZE } from './constants.js'
 import { normalizeUsername } from './utils.js'
 
-function makeBuffer() {
-  const buf   = new ArrayBuffer(64)
-  const bytes = new Uint8Array(buf)
-  const view  = new DataView(buf)
-  bytes[0] = MAGIC_0
-  bytes[1] = MAGIC_1
-  bytes[2] = VERSION
-  return { bytes, view }
+function makePayload(type) {
+  const buf = new Uint8Array(64)
+  buf[0] = MAGIC[0]; buf[1] = MAGIC[1]
+  buf[2] = VERSION
+  buf[3] = type
+  return buf
 }
 
-export function buildUserReg() {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.USER_REG)
-  return bytes
+function writeNullTerminated(buf, offset, maxLen, str) {
+  const encoded = new TextEncoder().encode(str).slice(0, maxLen - 1)
+  buf.set(encoded, offset)
+  // remaining bytes stay 0 (null terminator)
 }
 
-export function buildUsernameClaim(rawUsername) {
-  const username = normalizeUsername(rawUsername)
-  if (!username) throw new Error(`Invalid username: "${rawUsername}"`)
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.USERNAME_CLAIM)
-  bytes.set(new TextEncoder().encode(username).slice(0, 31), 4)
-  return bytes
+export function buildProfileClaim(username, displayName) {
+  const buf = makePayload(TYPES.PROFILE_CLAIM)
+  const normalized = normalizeUsername(username) ?? username.toLowerCase().slice(0, 31)
+  writeNullTerminated(buf, 4,  32, normalized)   // [4-35]
+  writeNullTerminated(buf, 36, 24, displayName)  // [36-59]
+  return buf
 }
 
-export function buildProfileSet({ displayName, bio }) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.PROFILE_SET)
-  let flags = 0
-  if (displayName) { flags |= 0x01; bytes.set(new TextEncoder().encode(displayName).slice(0, 23), 5) }
-  if (bio)         { flags |= 0x02; bytes.set(new TextEncoder().encode(bio).slice(0, 31), 29) }
-  view.setUint8(4, flags)
-  return bytes
+export function buildPostInline(postIdBytes8, text, reply = null) {
+  const buf = makePayload(TYPES.POST_INLINE)
+  buf.set(postIdBytes8, 4)
+  if (reply) {
+    buf[12] = 0x01  // is_reply flag
+    buf.set(reply.replyAuthor.slice(0, 20), 13)
+    buf.set(reply.replyPostId.slice(0, 8), 33)
+    const textBytes = new TextEncoder().encode(text).slice(0, 23)
+    buf.set(textBytes, 41)
+  } else {
+    buf[12] = 0x00
+    const textBytes = new TextEncoder().encode(text).slice(0, 51)
+    buf.set(textBytes, 13)
+  }
+  return buf
 }
 
-export function buildPostStart({ postIdBuf, totalChunks, flags, contentHash, replyToPostId, replyToAuthor }) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.POST_START)
-  bytes.set(new Uint8Array(postIdBuf), 4)
-  view.setUint8(12, totalChunks)
-  view.setUint8(13, flags)
-  bytes.set(contentHash.slice(0, 8), 14)
-  if (replyToPostId) bytes.set(new Uint8Array(replyToPostId), 22)
-  if (replyToAuthor) bytes.set(replyToAuthor.slice(0, 20), 30)
-  return bytes
+export function buildPostStart(postIdBytes8, totalChunks, compressed, contentHash8, reply = null) {
+  const buf = makePayload(TYPES.POST_START)
+  buf.set(postIdBytes8, 4)
+  buf[12] = totalChunks
+  buf[13] = (compressed ? 0x01 : 0x00) | (reply ? 0x02 : 0x00)
+  buf.set(contentHash8, 14)
+  if (reply) {
+    buf.set(reply.replyAuthor.slice(0, 20), 22)
+    const view = new DataView(buf.buffer)
+    // reply_to_post_id as LE uint64: store low 4 bytes
+    buf.set(reply.replyPostId.slice(0, 8), 42)
+  }
+  return buf
 }
 
-export function buildPostChunk({ postIdBuf, chunkIndex, data }) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.POST_CHUNK)
-  bytes.set(new Uint8Array(postIdBuf), 4)
-  view.setUint8(12, chunkIndex)
-  const chunk = data.slice(0, 50)
-  view.setUint8(13, chunk.length)
-  bytes.set(chunk, 14)
-  return bytes
+export function buildPostChunk(postIdBytes8, chunkIndex, data) {
+  const buf = makePayload(TYPES.POST_CHUNK)
+  buf.set(postIdBytes8, 4)
+  buf[12] = chunkIndex
+  const slice = data.slice(0, CHUNK_DATA_SIZE)
+  buf[13] = slice.length
+  buf.set(slice, 14)
+  return buf
 }
 
-export function buildPostAnnounce({ postIdBuf }) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, TYPES.POST_ANNOUNCE)
-  bytes.set(new Uint8Array(postIdBuf), 4)
-  return bytes
+export function buildFollow(targetAddressBytes20) {
+  const buf = makePayload(TYPES.FOLLOW)
+  buf.set(targetAddressBytes20.slice(0, 20), 4)
+  return buf
 }
 
-export function buildFollow(targetBytes)   { return buildSelfTarget(TYPES.FOLLOW,   targetBytes) }
-export function buildUnfollow(targetBytes) { return buildSelfTarget(TYPES.UNFOLLOW, targetBytes) }
-
-function buildSelfTarget(type, targetBytes) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, type)
-  bytes.set(targetBytes.slice(0, 20), 4)
-  return bytes
+export function buildUnfollow(targetAddressBytes20) {
+  const buf = makePayload(TYPES.UNFOLLOW)
+  buf.set(targetAddressBytes20.slice(0, 20), 4)
+  return buf
 }
 
-export function buildLike({ postIdBuf, postAuthorBytes })   { return buildReaction(TYPES.LIKE,   postIdBuf, postAuthorBytes) }
-export function buildUnlike({ postIdBuf, postAuthorBytes }) { return buildReaction(TYPES.UNLIKE, postIdBuf, postAuthorBytes) }
-
-function buildReaction(type, postIdBuf, postAuthorBytes) {
-  const { bytes, view } = makeBuffer()
-  view.setUint8(3, type)
-  bytes.set(new Uint8Array(postIdBuf), 4)
-  bytes.set(postAuthorBytes.slice(0, 20), 12)
-  return bytes
+export function splitInto50ByteChunks(payload) {
+  const chunks = []
+  for (let i = 0; i < payload.length; i += 50) {
+    chunks.push(payload.slice(i, i + 50))
+  }
+  return chunks
 }
 ```
 
-- [ ] **Step 4: Run — expect pass**
-
-```bash
-npm test tests/protocol/encoder.test.js
-```
-
-Expected: All pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/protocol/encoder.js tests/protocol/encoder.test.js
-git commit -m "feat: protocol encoder for all Phase 1 event types"
-```
-
----
-
-## Task 4: Protocol Decoder
-
-**Files:**
-- Create: `src/protocol/decoder.js`
-- Create: `tests/protocol/decoder.test.js`
-
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 5: Write failing decoder tests**
 
 Create `tests/protocol/decoder.test.js`:
 
 ```javascript
 import { describe, it, expect } from 'vitest'
 import { parseTransaction } from '../../src/protocol/decoder.js'
-import { buildUserReg, buildUsernameClaim, buildProfileSet, buildPostStart, buildPostChunk, buildPostAnnounce } from '../../src/protocol/encoder.js'
-import { bytesToHex, generatePostId } from '../../src/protocol/utils.js'
+import { buildProfileClaim, buildPostInline, buildPostStart, buildPostChunk } from '../../src/protocol/encoder.js'
+import { bytesToHex } from '../../src/protocol/utils.js'
+import { POST_CATALOG_ADDRESS } from '../../src/protocol/constants.js'
 
-function mockTx(payload, from = 'NQ00 SELF', to = 'NQ00 SELF') {
-  return { hash: 'abc', from, to, data: bytesToHex(payload), blockHeight: 100, transactionIndex: 0, timestamp: 0 }
+function mockTx(payload, to = POST_CATALOG_ADDRESS) {
+  return { hash: 'abc', from: 'NQ01SENDER', to, data: bytesToHex(payload), blockHeight: 100, transactionIndex: 0, timestamp: 0 }
 }
 
-const CATALOG = 'NQ32 0VD4 26TR 1394 KXBJ 862C NFKG 61M5 GFJ0'
-
 describe('parseTransaction', () => {
-  it('returns null for non-NF data', () => {
-    expect(parseTransaction({ ...mockTx(new Uint8Array([0x00, 0x01])), data: '0001' })).toBeNull()
+  it('returns null for non-NF magic', () => {
+    const tx = mockTx(new Uint8Array([0x00, 0x00, 0x01, 0x01]))
+    expect(parseTransaction(tx)).toBeNull()
   })
 
-  it('parses USER_REG', () => {
-    const tx = mockTx(buildUserReg(), 'NQ00 SELF', CATALOG)
+  it('parses PROFILE_CLAIM', () => {
+    const tx = mockTx(buildProfileClaim('bob', 'Bob B'))
     const ev = parseTransaction(tx)
-    expect(ev.event).toBe('USER_REG')
-    expect(ev.from).toBe('NQ00 SELF')
+    expect(ev.event).toBe('PROFILE_CLAIM')
+    expect(ev.username).toBe('bob')
+    expect(ev.displayName).toBe('Bob B')
+    expect(ev.from).toBe('NQ01SENDER')
   })
 
-  it('parses USERNAME_CLAIM and normalizes username', () => {
-    const tx = mockTx(buildUsernameClaim('Alice_99'), 'NQ00 SELF', CATALOG)
+  it('parses POST_INLINE without reply', () => {
+    const postId = new Uint8Array(8).fill(1)
+    const tx = mockTx(buildPostInline(postId, 'hello world'))
     const ev = parseTransaction(tx)
-    expect(ev.event).toBe('USERNAME_CLAIM')
-    expect(ev.username).toBe('alice_99')
-  })
-
-  it('parses PROFILE_SET', () => {
-    const tx = mockTx(buildProfileSet({ displayName: 'Alice', bio: 'hello world' }), 'NQ00 SELF', 'NQ00 SELF')
-    const ev = parseTransaction(tx)
-    expect(ev.event).toBe('PROFILE_SET')
-    expect(ev.displayName).toBe('Alice')
-    expect(ev.bio).toBe('hello world')
+    expect(ev.event).toBe('POST_INLINE')
+    expect(ev.text).toBe('hello world')
+    expect(ev.isReply).toBe(false)
   })
 
   it('parses POST_START', () => {
-    const postIdBuf = generatePostId()
-    const hash = new Uint8Array(8).fill(0xAB)
-    const tx = mockTx(buildPostStart({ postIdBuf, totalChunks: 2, flags: 0x01, contentHash: hash, replyToPostId: null, replyToAuthor: null }))
+    const postId = new Uint8Array(8).fill(2)
+    const hash   = new Uint8Array(8).fill(0xab)
+    const tx = mockTx(buildPostStart(postId, 3, true, hash))
     const ev = parseTransaction(tx)
     expect(ev.event).toBe('POST_START')
-    expect(ev.totalChunks).toBe(2)
+    expect(ev.totalChunks).toBe(3)
     expect(ev.compressed).toBe(true)
     expect(ev.contentHash).toHaveLength(16)
   })
 
   it('parses POST_CHUNK', () => {
-    const data = new Uint8Array(50).fill(0x42)
-    const tx = mockTx(buildPostChunk({ postIdBuf: generatePostId(), chunkIndex: 1, data }))
+    const postId = new Uint8Array(8).fill(3)
+    const data   = new Uint8Array(30).fill(0xcc)
+    const tx = mockTx(buildPostChunk(postId, 1, data), 'NQ_DERIVED')
     const ev = parseTransaction(tx)
     expect(ev.event).toBe('POST_CHUNK')
     expect(ev.chunkIndex).toBe(1)
-    expect(ev.data).toHaveLength(50)
-  })
-
-  it('parses POST_ANNOUNCE', () => {
-    const tx = mockTx(buildPostAnnounce({ postIdBuf: generatePostId() }), 'NQ00 AUTHOR', CATALOG)
-    const ev = parseTransaction(tx)
-    expect(ev.event).toBe('POST_ANNOUNCE')
-    expect(ev.postId).toHaveLength(16)
+    expect(ev.dataLen).toBe(30)
   })
 })
 ```
 
-- [ ] **Step 2: Run — expect failures**
-
-```bash
-npm test tests/protocol/decoder.test.js
-```
-
-Expected: FAIL — `decoder.js` not found.
-
-- [ ] **Step 3: Create src/protocol/decoder.js**
+- [ ] **Step 6: Create src/protocol/decoder.js**
 
 ```javascript
-import { MAGIC_0, MAGIC_1, VERSION, TYPES } from './constants.js'
-import { hexToBytes, bytesToHex, postIdToHex, normalizeUsername } from './utils.js'
+import { TYPES } from './constants.js'
+import { hexToBytes, trimNulls, postIdToHex } from './utils.js'
+import { addressBytesToNq } from './address.js'
+
+const MAGIC_HEX = '4e46'
 
 export function parseTransaction(tx) {
-  const hex = (tx.data ?? '').toLowerCase()
-  if (hex.length < 8) return null
-  if (hex[0] !== '4' || hex[1] !== 'e' || hex[2] !== '4' || hex[3] !== '6') return null
+  const hex = tx.data
+  if (!hex || hex.length < 8) return null
+  if (hex.slice(0, 4) !== MAGIC_HEX) return null
 
-  const bytes = hexToBytes(hex)
-  if (bytes[2] !== VERSION) return null
+  const bytes   = hexToBytes(hex)
+  const version = bytes[2]
+  const type    = bytes[3]
+  if (version !== 0x01) return null
 
-  const type = bytes[3]
   const base = {
-    type,
-    event:       null,
-    txHash:      tx.hash,
     from:        tx.from,
     to:          tx.to,
     blockHeight: tx.blockHeight,
-    txIndex:     tx.transactionIndex ?? 0,
+    txIndex:     tx.transactionIndex,
+    txHash:      tx.hash,
   }
 
   switch (type) {
-    case TYPES.USER_REG:       return { ...base, event: 'USER_REG' }
-    case TYPES.USERNAME_CLAIM: return decodeUsernameClaim(base, bytes)
-    case TYPES.PROFILE_SET:    return decodeProfileSet(base, bytes)
+    case TYPES.PROFILE_CLAIM:  return decodeProfileClaim(base, bytes)
+    case TYPES.POST_INLINE:    return decodePostInline(base, bytes)
     case TYPES.POST_START:     return decodePostStart(base, bytes)
     case TYPES.POST_CHUNK:     return decodePostChunk(base, bytes)
-    case TYPES.POST_ANNOUNCE:  return decodePostAnnounce(base, bytes)
     case TYPES.FOLLOW:         return decodeFollowUnfollow(base, bytes, 'FOLLOW')
     case TYPES.UNFOLLOW:       return decodeFollowUnfollow(base, bytes, 'UNFOLLOW')
-    case TYPES.LIKE:           return decodeLikeUnlike(base, bytes, 'LIKE')
-    case TYPES.UNLIKE:         return decodeLikeUnlike(base, bytes, 'UNLIKE')
     default:                   return null
   }
 }
 
-function nullTermString(bytes, offset, length) {
-  const slice = bytes.slice(offset, offset + length)
-  const end   = slice.indexOf(0)
-  return new TextDecoder().decode(end === -1 ? slice : slice.slice(0, end))
+function readNullTerminated(bytes, offset, maxLen) {
+  return new TextDecoder().decode(trimNulls(bytes.slice(offset, offset + maxLen)))
 }
 
-function decodeUsernameClaim(base, bytes) {
-  const raw      = nullTermString(bytes, 4, 32)
-  const username = normalizeUsername(raw)
-  if (!username) return null
-  return { ...base, event: 'USERNAME_CLAIM', username }
+function decodeProfileClaim(base, bytes) {
+  const username    = readNullTerminated(bytes, 4, 32)
+  const displayName = readNullTerminated(bytes, 36, 24)
+  return { ...base, event: 'PROFILE_CLAIM', username, displayName }
 }
 
-function decodeProfileSet(base, bytes) {
-  const flags          = bytes[4]
-  const hasDisplayName = (flags & 0x01) !== 0
-  const hasBio         = (flags & 0x02) !== 0
-  return {
-    ...base,
-    event:       'PROFILE_SET',
-    displayName: hasDisplayName ? nullTermString(bytes, 5, 24) : null,
-    bio:         hasBio         ? nullTermString(bytes, 29, 32) : null,
+function decodePostInline(base, bytes) {
+  const postId  = postIdToHex(bytes.slice(4, 12))
+  const flags   = bytes[12]
+  const isReply = !!(flags & 0x01)
+  let replyToAuthor = null, replyToPostId = null, text
+  if (isReply) {
+    replyToAuthor = addressBytesToNq(bytes.slice(13, 33))
+    replyToPostId = postIdToHex(bytes.slice(33, 41))
+    text = new TextDecoder().decode(trimNulls(bytes.slice(41, 64)))
+  } else {
+    text = new TextDecoder().decode(trimNulls(bytes.slice(13, 64)))
   }
+  return { ...base, event: 'POST_INLINE', postId, isReply, replyToAuthor, replyToPostId, text }
 }
 
 function decodePostStart(base, bytes) {
-  const postId         = postIdToHex(bytes.slice(4, 12).buffer)
-  const totalChunks    = bytes[12]
-  const flags          = bytes[13]
-  const compressed     = (flags & 0x01) !== 0
-  const isReply        = (flags & 0x02) !== 0
-  const contentHash    = bytesToHex(bytes.slice(14, 22))
-  const replyToPostId  = isReply ? postIdToHex(bytes.slice(22, 30).buffer) : null
-  const replyToAuthor  = isReply ? bytesToHex(bytes.slice(30, 50)) : null
-  return { ...base, event: 'POST_START', postId, totalChunks, flags, compressed, isReply, contentHash, replyToPostId, replyToAuthor }
+  const postId       = postIdToHex(bytes.slice(4, 12))
+  const totalChunks  = bytes[12]
+  const flags        = bytes[13]
+  const compressed   = !!(flags & 0x01)
+  const isReply      = !!(flags & 0x02)
+  const contentHash  = Array.from(bytes.slice(14, 22)).map(b => b.toString(16).padStart(2, '0')).join('')
+  let replyToAuthor = null, replyToPostId = null
+  if (isReply) {
+    replyToAuthor = addressBytesToNq(bytes.slice(22, 42))
+    replyToPostId = postIdToHex(bytes.slice(42, 50))
+  }
+  return { ...base, event: 'POST_START', postId, totalChunks, compressed, contentHash, isReply, replyToAuthor, replyToPostId }
 }
 
 function decodePostChunk(base, bytes) {
-  const postId     = postIdToHex(bytes.slice(4, 12).buffer)
+  const postId     = postIdToHex(bytes.slice(4, 12))
   const chunkIndex = bytes[12]
   const dataLen    = bytes[13]
   const data       = bytes.slice(14, 14 + dataLen)
-  return { ...base, event: 'POST_CHUNK', postId, chunkIndex, data }
-}
-
-function decodePostAnnounce(base, bytes) {
-  const postId = postIdToHex(bytes.slice(4, 12).buffer)
-  return { ...base, event: 'POST_ANNOUNCE', postId }
+  return { ...base, event: 'POST_CHUNK', postId, chunkIndex, dataLen, data }
 }
 
 function decodeFollowUnfollow(base, bytes, event) {
-  return { ...base, event, targetAddress: bytesToHex(bytes.slice(4, 24)) }
-}
-
-function decodeLikeUnlike(base, bytes, event) {
-  const postId     = postIdToHex(bytes.slice(4, 12).buffer)
-  const postAuthor = bytesToHex(bytes.slice(12, 32))
-  return { ...base, event, postId, postAuthor }
+  const targetAddress = addressBytesToNq(bytes.slice(4, 24))
+  return { ...base, event, targetAddress }
 }
 ```
 
-- [ ] **Step 4: Run — expect pass**
+- [ ] **Step 7: Run all protocol tests**
 
 ```bash
-npm test tests/protocol/decoder.test.js
+npm test tests/protocol/
 ```
 
 Expected: All pass.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/protocol/decoder.js tests/protocol/decoder.test.js
-git commit -m "feat: protocol decoder for all Phase 1 event types"
+git add src/protocol/ tests/protocol/
+git commit -m "feat: protocol constants, encoder, decoder (TDD)"
 ```
 
 ---
 
-## Task 5: Compression Utilities
+## Task 4: Compression
 
-**Files:**
-- Create: `src/protocol/compression.js`
-- Create: `tests/protocol/compression.test.js`
+**Files:** `src/protocol/compression.js`, `tests/protocol/compression.test.js`
 
 - [ ] **Step 1: Write failing tests**
 
@@ -891,181 +872,137 @@ Create `tests/protocol/compression.test.js`:
 
 ```javascript
 import { describe, it, expect } from 'vitest'
-import { deflateRaw, inflateRaw, isCompressionSupported, encodePost } from '../../src/protocol/compression.js'
+import { deflateRaw, inflateRaw, isCompressionSupported } from '../../src/protocol/compression.js'
 
-describe('deflateRaw / inflateRaw', () => {
-  it('round-trips bytes', async () => {
-    const input    = new TextEncoder().encode('Hello, NimFeed! '.repeat(10))
-    const comp     = await deflateRaw(input)
-    const restored = await inflateRaw(comp)
-    expect(restored).toEqual(input)
-  })
-})
-
-describe('encodePost', () => {
-  it('returns payload, flags, and contentHash', async () => {
-    const result = await encodePost('Hello world from NimFeed!')
-    expect(result.payload).toBeInstanceOf(Uint8Array)
-    expect(result.contentHash).toHaveLength(8)
-    expect(typeof result.compressed).toBe('boolean')
+describe('compression', () => {
+  it('isCompressionSupported returns boolean', () => {
+    expect(typeof isCompressionSupported()).toBe('boolean')
   })
 
-  it('does not compress if compressed is larger', async () => {
-    // Very short strings often do not compress smaller
-    const result = await encodePost('Hi')
-    if (!result.compressed) {
-      expect(result.payload).toEqual(new TextEncoder().encode('Hi'))
-    }
+  it('round-trips text through deflate/inflate', async () => {
+    const original = new TextEncoder().encode('Hello, NimFeed! '.repeat(10))
+    const compressed = await deflateRaw(original)
+    const restored = await inflateRaw(compressed)
+    expect(restored).toEqual(original)
   })
 
-  it('splits into 50-byte chunks', async () => {
-    const long   = 'A'.repeat(200)
-    const result = await encodePost(long)
-    for (const chunk of result.chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(50)
-    }
+  it('compressed output is smaller for repetitive input', async () => {
+    const original = new TextEncoder().encode('aaa'.repeat(100))
+    const compressed = await deflateRaw(original)
+    expect(compressed.length).toBeLessThan(original.length)
   })
 })
 ```
 
-- [ ] **Step 2: Run — expect failures**
-
-```bash
-npm test tests/protocol/compression.test.js
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Create src/protocol/compression.js**
+- [ ] **Step 2: Create src/protocol/compression.js**
 
 ```javascript
 export function isCompressionSupported() {
-  return typeof CompressionStream !== 'undefined'
+  try {
+    new CompressionStream('deflate-raw')
+    return true
+  } catch { return false }
 }
 
 export async function deflateRaw(bytes) {
   if (!isCompressionSupported()) return bytes
   const cs     = new CompressionStream('deflate-raw')
   const writer = cs.writable.getWriter()
+  const reader = cs.readable.getReader()
   writer.write(bytes)
   writer.close()
-  return new Uint8Array(await new Response(cs.readable).arrayBuffer())
+  const chunks = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0)
+  const out   = new Uint8Array(total)
+  let offset  = 0
+  for (const c of chunks) { out.set(c, offset); offset += c.length }
+  return out
 }
 
 export async function inflateRaw(bytes) {
-  if (!isCompressionSupported()) return bytes
   const ds     = new DecompressionStream('deflate-raw')
   const writer = ds.writable.getWriter()
+  const reader = ds.readable.getReader()
   writer.write(bytes)
   writer.close()
-  return new Uint8Array(await new Response(ds.readable).arrayBuffer())
+  const chunks = []
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0)
+  const out   = new Uint8Array(total)
+  let offset  = 0
+  for (const c of chunks) { out.set(c, offset); offset += c.length }
+  return out
 }
 
-// Encodes post text → { payload, compressed, contentHash, chunks }
-export async function encodePost(text) {
-  const raw        = new TextEncoder().encode(text)
-  const comp       = await deflateRaw(raw)
-  const compressed = comp.length < raw.length
-  const payload    = compressed ? comp : raw
-
-  const digest      = await crypto.subtle.digest('SHA-256', payload)
-  const contentHash = new Uint8Array(digest).slice(0, 8)
-
-  const chunks = []
-  for (let i = 0; i < payload.length; i += 50) {
-    chunks.push(payload.slice(i, i + 50))
-  }
-
-  return { payload, compressed, contentHash, chunks }
+export function shouldCompress(raw, compressed) {
+  return compressed.length < raw.length
 }
 ```
 
-- [ ] **Step 4: Run — expect pass**
+- [ ] **Step 3: Run and commit**
 
 ```bash
 npm test tests/protocol/compression.test.js
-```
-
-Expected: All pass. (If `CompressionStream` is unavailable in happy-dom, the test still passes because `deflateRaw` falls back to returning raw bytes and the round-trip holds.)
-
-- [ ] **Step 5: Commit**
-
-```bash
 git add src/protocol/compression.js tests/protocol/compression.test.js
-git commit -m "feat: compression utilities with deflate-raw and encodePost"
+git commit -m "feat: deflate-raw compression with graceful fallback"
 ```
 
 ---
 
-## Task 6: Database Schema + Queries
+## Task 5: Database Schema
 
-**Files:**
-- Create: `src/db/schema.js`
-- Create: `src/db/queries.js`
-- Create: `tests/db/schema.test.js`
+**Files:** `src/db/schema.js`, `src/db/queries.js`, `tests/db/schema.test.js`
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Write failing schema tests**
 
 Create `tests/db/schema.test.js`:
 
 ```javascript
 import { describe, it, expect, beforeEach } from 'vitest'
-// fake-indexeddb/auto is loaded by tests/setup.js
 import { db } from '../../src/db/schema.js'
-import { putUser, getUser, putPost, getPost, putCatalogRef, getCatalogRefs } from '../../src/db/queries.js'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
 })
 
-describe('users store', () => {
-  it('stores and retrieves a user', async () => {
-    await putUser({ address: 'NQ01 TEST', display_name: 'Alice', bio: null, registered_height: 100 })
-    const user = await getUser('NQ01 TEST')
-    expect(user.display_name).toBe('Alice')
+describe('profile_claims store', () => {
+  it('stores and retrieves a claim', async () => {
+    await db.profile_claims.put({
+      username: 'alice', address: 'NQ01A', display_name: 'Alice',
+      block_height: 10, tx_index: 0, tx_hash: 'x'
+    })
+    const row = await db.profile_claims.get(['alice', 'NQ01A'])
+    expect(row.display_name).toBe('Alice')
   })
 })
 
 describe('posts store', () => {
-  it('stores and retrieves a post by compound key', async () => {
-    await putPost({
-      author: 'NQ01 TEST', post_id: '0000000100000001',
-      block_height: 200, tx_index: 0,
-      content: null, total_chunks: 2, chunks_received: 0,
-      compressed: true, content_hash: 'aabbccdd00112233',
-      is_reply: false, reply_to_author: null, reply_to_post_id: null,
-      status: 'pending', first_seen_at: 200,
+  it('stores inline post and retrieves by author', async () => {
+    await db.posts.put({
+      author: 'NQ01A', post_id: '0000000000000001', block_height: 10, tx_index: 0,
+      content: 'hello', total_chunks: null, chunks_received: 0, compressed: false,
+      content_hash: null, is_inline: true, is_reply: false,
+      reply_to_author: null, reply_to_post_id: null,
+      status: 'inline', first_seen_at: 10
     })
-    const post = await getPost('NQ01 TEST', '0000000100000001')
-    expect(post.status).toBe('pending')
-    expect(post.total_chunks).toBe(2)
-  })
-})
-
-describe('catalog_refs store', () => {
-  it('stores and retrieves POST_ANNOUNCE refs', async () => {
-    await putCatalogRef({
-      tx_hash: 'hash1', type: 'POST_ANNOUNCE',
-      sender: 'NQ01 TEST', post_id: '0000000100000001',
-      username: null, block_height: 300, tx_index: 1, seen_at: Date.now(),
-    })
-    const refs = await getCatalogRefs('POST_ANNOUNCE', { limit: 10 })
-    expect(refs).toHaveLength(1)
-    expect(refs[0].post_id).toBe('0000000100000001')
+    const posts = await db.posts.where('author').equals('NQ01A').toArray()
+    expect(posts).toHaveLength(1)
+    expect(posts[0].content).toBe('hello')
   })
 })
 ```
 
-- [ ] **Step 2: Run — expect failures**
-
-```bash
-npm test tests/db/schema.test.js
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Create src/db/schema.js**
+- [ ] **Step 2: Create src/db/schema.js**
 
 ```javascript
 import Dexie from 'dexie'
@@ -1073,129 +1010,636 @@ import Dexie from 'dexie'
 export const db = new Dexie('nimfeed-v1')
 
 db.version(1).stores({
-  users:           'address, username',
-  username_claims: '[username+address], username, address',
-  posts:           '[author+post_id], block_height, author, status, [reply_to_author+reply_to_post_id]',
-  post_chunks:     '[author+post_id+chunk_index]',
-  follows:         '[follower+followee], follower, followee',
-  likes:           '[liker+post_author+post_id], [post_author+post_id], liker',
-  catalog_refs:    'tx_hash, type, sender, [type+block_height+tx_index], [sender+type]',
-  sync_state:      'address',
+  profile_claims: '[username+address], username, address',
+  users:          'address, username',
+  posts:          '[author+post_id], block_height, author, status, [reply_to_author+reply_to_post_id]',
+  post_chunks:    '[author+post_id+chunk_index]',
+  catalog_refs:   'tx_hash, type, sender, [type+block_height+tx_index], [sender+type]',
+  follows:        '[follower+followee], follower, followee',
+  sync_state:     'scope_key',
 })
 ```
 
-- [ ] **Step 4: Create src/db/queries.js**
+- [ ] **Step 3: Create src/db/queries.js**
 
 ```javascript
 import { db } from './schema.js'
 
-// Users
-export const putUser    = (user)    => db.users.put(user)
-export const getUser    = (address) => db.users.get(address)
-export const updateUser = (address, fields) => db.users.update(address, fields)
+// Profile claims
+export const putProfileClaim = (claim) => db.profile_claims.put(claim)
 
-// Username claims
-export const putUsernameClaim = (claim) => db.username_claims.put(claim)
-export async function resolveUsername(username) {
-  const claims = await db.username_claims.where('username').equals(username).toArray()
+export async function getWinningClaim(username) {
+  const claims = await db.profile_claims.where('username').equals(username).toArray()
   if (!claims.length) return null
-  return claims.sort((a, b) => a.block_height - b.block_height || a.tx_index - b.tx_index)[0]
+  return claims.sort((a, b) =>
+    a.block_height - b.block_height || a.tx_index - b.tx_index
+  )[0]
 }
 
+export async function getLatestClaimByAddress(address, username) {
+  const claims = await db.profile_claims
+    .where('address').equals(address).toArray()
+  const forUsername = claims.filter(c => c.username === username)
+  if (!forUsername.length) return null
+  return forUsername.sort((a, b) =>
+    b.block_height - a.block_height || b.tx_index - a.tx_index
+  )[0]
+}
+
+export async function searchUsernames(query) {
+  if (!query || query.length < 2) return []
+  const normalized = query.toLowerCase().replace(/[^a-z0-9_]/g, '')
+  if (!normalized) return []
+  const all = await db.profile_claims
+    .where('username').startsWith(normalized).toArray()
+  const winners = new Map()
+  for (const claim of all) {
+    const existing = winners.get(claim.username)
+    if (!existing ||
+        claim.block_height < existing.block_height ||
+        (claim.block_height === existing.block_height && claim.tx_index < existing.tx_index)) {
+      winners.set(claim.username, claim)
+    }
+  }
+  return [...winners.values()].slice(0, 20)
+}
+
+// Users
+export const getUser    = (address) => db.users.get(address)
+export const putUser    = (user) => db.users.put(user)
+export const updateUser = (address, changes) => db.users.update(address, changes)
+
 // Posts
-export const putPost    = (post)              => db.posts.put(post)
-export const getPost    = (author, post_id)   => db.posts.get([author, post_id])
-export const updatePost = (author, post_id, fields) => db.posts.update([author, post_id], fields)
-export const getPostsByAuthor = (author) =>
-  db.posts.where('author').equals(author).filter(p => p.status === 'complete').toArray()
+export const getPost    = (author, postId) => db.posts.get([author, postId])
+export const putPost    = (post) => db.posts.put(post)
+export const updatePost = (author, postId, changes) => db.posts.update([author, postId], changes)
+
+export async function getPostsByAuthor(author) {
+  return db.posts.where('author').equals(author)
+    .filter(p => p.status === 'complete' || p.status === 'inline')
+    .toArray()
+}
+
+export async function getReplies(replyToAuthor, replyToPostId) {
+  return db.posts
+    .where('[reply_to_author+reply_to_post_id]')
+    .equals([replyToAuthor, replyToPostId])
+    .filter(p => p.status === 'complete' || p.status === 'inline')
+    .toArray()
+}
 
 // Post chunks
-export const putChunk    = (chunk) => db.post_chunks.put(chunk)
-export const getChunks   = (author, post_id) =>
-  db.post_chunks.where('[author+post_id+chunk_index]')
-    .between([author, post_id, 0], [author, post_id, 255], true, true)
-    .toArray()
-export const deleteChunks = (author, post_id) =>
-  db.post_chunks.where('[author+post_id+chunk_index]')
-    .between([author, post_id, 0], [author, post_id, 255], true, true)
-    .delete()
+export const putChunk = (chunk) => db.post_chunks.put(chunk)
 
 // Catalog refs
 export const putCatalogRef = (ref) => db.catalog_refs.put(ref)
-export async function getCatalogRefs(type, { limit = 20, beforeHeight = Infinity, beforeTxIndex = Infinity } = {}) {
-  return db.catalog_refs
-    .where('[type+block_height+tx_index]')
-    .below([type, beforeHeight, beforeTxIndex])
+
+export async function getCatalogRefs(types, { limit = 20, beforeHeight = Infinity, beforeTxIndex = Infinity } = {}) {
+  const typeArray = Array.isArray(types) ? types : [types]
+  const all = await db.catalog_refs
+    .where('type').anyOf(typeArray)
+    .filter(r =>
+      r.block_height < beforeHeight ||
+      (r.block_height === beforeHeight && r.tx_index < beforeTxIndex)
+    )
     .reverse()
-    .limit(limit)
+    .sortBy('block_height')
+  // reverse sort to get DESC order
+  return all.sort((a, b) => b.block_height - a.block_height || b.tx_index - a.tx_index)
+    .slice(0, limit)
+}
+
+export async function getCatalogRefsBySender(sender, types) {
+  const typeArray = Array.isArray(types) ? types : [types]
+  return db.catalog_refs
+    .where('sender').equals(sender)
+    .filter(r => typeArray.includes(r.type))
     .toArray()
 }
 
 // Sync state
-export const getSyncState    = (address) => db.sync_state.get(address)
-export const putSyncState    = (state)   => db.sync_state.put(state)
-export const updateSyncState = (address, fields) => db.sync_state.update(address, fields)
+export const getSyncState  = (scopeKey) => db.sync_state.get(scopeKey)
+export const putSyncState  = (state) => db.sync_state.put(state)
+export const updateSyncState = (scopeKey, changes) => db.sync_state.update(scopeKey, changes)
 ```
 
-- [ ] **Step 5: Run — expect pass**
+- [ ] **Step 4: Run and commit**
 
 ```bash
 npm test tests/db/schema.test.js
-```
-
-Expected: All pass.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/db/schema.js src/db/queries.js tests/db/schema.test.js
-git commit -m "feat: IndexedDB schema (8 stores) and typed query helpers"
+git add src/db/ tests/db/
+git commit -m "feat: IndexedDB schema and query helpers"
 ```
 
 ---
 
-## Task 7: RPC Client
+## Task 6: Indexer — Handlers and Assembler
 
-**Files:**
-- Create: `src/chain/rpc.js`
+**Files:** `src/indexer/handlers.js`, `src/indexer/assembler.js`, `tests/indexer/assembler.test.js`
 
-No unit tests — RPC requires a live node. Verify manually in Task 19 (testnet smoke test).
+- [ ] **Step 1: Write assembler tests**
+
+Create `tests/indexer/assembler.test.js`:
+
+```javascript
+import { describe, it, expect, beforeEach } from 'vitest'
+import { db } from '../../src/db/schema.js'
+import { tryAssemble } from '../../src/indexer/assembler.js'
+import { deflateRaw } from '../../src/protocol/compression.js'
+
+beforeEach(async () => { await db.delete(); await db.open() })
+
+async function putPost(author, postId, totalChunks, compressed, contentHash) {
+  await db.posts.put({
+    author, post_id: postId, block_height: 1, tx_index: 0,
+    content: null, total_chunks: totalChunks, chunks_received: 0,
+    compressed, content_hash: contentHash, is_inline: false,
+    is_reply: false, reply_to_author: null, reply_to_post_id: null,
+    status: 'pending', first_seen_at: 1
+  })
+}
+
+async function putChunk(author, postId, index, data) {
+  await db.post_chunks.put({ author, post_id: postId, chunk_index: index, data, data_len: data.length })
+  await db.posts.update([author, postId], { chunks_received: index + 1 })
+}
+
+describe('tryAssemble', () => {
+  it('assembles single-chunk post', async () => {
+    const raw       = new TextEncoder().encode('hello world')
+    const digest    = await crypto.subtle.digest('SHA-256', raw)
+    const hash8     = Array.from(new Uint8Array(digest).slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    await putPost('NQ01A', '0000000000000001', 1, false, hash8)
+    await putChunk('NQ01A', '0000000000000001', 0, raw)
+
+    await tryAssemble('NQ01A', '0000000000000001')
+
+    const post = await db.posts.get(['NQ01A', '0000000000000001'])
+    expect(post.status).toBe('complete')
+    expect(post.content).toBe('hello world')
+  })
+
+  it('marks invalid_hash when hash mismatches', async () => {
+    const raw    = new TextEncoder().encode('hello')
+    const hash8  = '0000000000000000'
+
+    await putPost('NQ01B', '0000000000000002', 1, false, hash8)
+    await putChunk('NQ01B', '0000000000000002', 0, raw)
+
+    await tryAssemble('NQ01B', '0000000000000002')
+
+    const post = await db.posts.get(['NQ01B', '0000000000000002'])
+    expect(post.status).toBe('invalid_hash')
+  })
+
+  it('does nothing if not all chunks received', async () => {
+    await putPost('NQ01C', '0000000000000003', 3, false, '0'.repeat(16))
+    await putChunk('NQ01C', '0000000000000003', 0, new Uint8Array(10))
+
+    await tryAssemble('NQ01C', '0000000000000003')
+
+    const post = await db.posts.get(['NQ01C', '0000000000000003'])
+    expect(post.status).toBe('pending')
+  })
+})
+```
+
+- [ ] **Step 2: Create src/indexer/assembler.js**
+
+```javascript
+import { db } from '../db/schema.js'
+import { inflateRaw } from '../protocol/compression.js'
+import { hexToBytes } from '../protocol/utils.js'
+
+export async function tryAssemble(author, postId) {
+  const post = await db.posts.get([author, postId])
+  if (!post || post.total_chunks === null) return
+  if (post.chunks_received < post.total_chunks) return
+
+  const chunks = await db.post_chunks
+    .where('[author+post_id+chunk_index]')
+    .between([author, postId, 0], [author, postId, 255])
+    .toArray()
+
+  chunks.sort((a, b) => a.chunk_index - b.chunk_index)
+
+  const totalLen = chunks.reduce((s, c) => s + c.data_len, 0)
+  const encoded  = new Uint8Array(totalLen)
+  let offset = 0
+  for (const c of chunks) {
+    encoded.set(c.data.slice(0, c.data_len), offset)
+    offset += c.data_len
+  }
+
+  const digest = await crypto.subtle.digest('SHA-256', encoded)
+  const hash8  = new Uint8Array(digest).slice(0, 8)
+  const expected = hexToBytes(post.content_hash)
+
+  if (!bytesEqual(hash8, expected)) {
+    await db.posts.update([author, postId], { status: 'invalid_hash' })
+    return
+  }
+
+  const payload = post.compressed ? await inflateRaw(encoded) : encoded
+  const content = new TextDecoder().decode(payload)
+
+  await db.posts.update([author, postId], { status: 'complete', content })
+  await db.post_chunks
+    .where('[author+post_id+chunk_index]')
+    .between([author, postId, 0], [author, postId, 255])
+    .delete()
+}
+
+function bytesEqual(a, b) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+```
+
+- [ ] **Step 3: Create src/indexer/handlers.js**
+
+```javascript
+import { POST_CATALOG_ADDRESS, FOLLOW_CATALOG_ADDRESS, TYPES } from '../protocol/constants.js'
+import { parseTransaction } from '../protocol/decoder.js'
+import { normalizeUsername } from '../protocol/utils.js'
+import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../protocol/address.js'
+import {
+  putProfileClaim, getWinningClaim, getLatestClaimByAddress, putUser, getUser, updateUser,
+  putPost, getPost, updatePost, putChunk, putCatalogRef,
+} from '../db/queries.js'
+import { tryAssemble } from './assembler.js'
+
+export async function processPostCatalogTx(tx) {
+  if (tx.to !== POST_CATALOG_ADDRESS) return
+  const ev = parseTransaction(tx)
+  if (!ev) return
+
+  switch (ev.event) {
+    case 'PROFILE_CLAIM': await handleProfileClaim(ev); break
+    case 'POST_INLINE':   await handlePostInline(ev);   break
+    case 'POST_START':    await handlePostStart(ev);    break
+  }
+}
+
+export async function processFollowCatalogTx(tx) {
+  if (tx.to !== FOLLOW_CATALOG_ADDRESS) return
+  const ev = parseTransaction(tx)
+  if (!ev) return
+
+  switch (ev.event) {
+    case 'FOLLOW':   await handleFollow(ev); break
+    case 'UNFOLLOW': await handleFollow(ev); break
+  }
+}
+
+export async function processDerivedAddressTx(tx, expectedNq) {
+  if (tx.to !== expectedNq) return
+  const ev = parseTransaction(tx)
+  if (!ev || ev.event !== 'POST_CHUNK') return
+  await handlePostChunk(ev)
+}
+
+async function handleProfileClaim(ev) {
+  const username = normalizeUsername(ev.username)
+  if (!username) return
+
+  await putProfileClaim({
+    username,
+    address:      ev.from,
+    display_name: ev.displayName,
+    block_height: ev.blockHeight,
+    tx_index:     ev.txIndex,
+    tx_hash:      ev.txHash,
+  })
+
+  await putCatalogRef({
+    tx_hash:      ev.txHash,
+    type:         'PROFILE_CLAIM',
+    sender:       ev.from,
+    post_id:      null,
+    username,
+    block_height: ev.blockHeight,
+    tx_index:     ev.txIndex,
+    seen_at:      Date.now(),
+  })
+
+  // Update users cache
+  const winning = await getWinningClaim(username)
+  if (winning?.address === ev.from) {
+    const latest = await getLatestClaimByAddress(ev.from, username)
+    await putUser({
+      address:           ev.from,
+      display_name:      latest?.display_name ?? null,
+      username,
+      username_height:   winning.block_height,
+      username_tx_index: winning.tx_index,
+      last_synced_height: ev.blockHeight,
+    })
+  }
+}
+
+async function handlePostInline(ev) {
+  await putPost({
+    author:           ev.from,
+    post_id:          ev.postId,
+    block_height:     ev.blockHeight,
+    tx_index:         ev.txIndex,
+    content:          ev.text,
+    total_chunks:     null,
+    chunks_received:  0,
+    compressed:       false,
+    content_hash:     null,
+    is_inline:        true,
+    is_reply:         ev.isReply,
+    reply_to_author:  ev.replyToAuthor,
+    reply_to_post_id: ev.replyToPostId,
+    status:           'inline',
+    first_seen_at:    ev.blockHeight,
+  })
+
+  await putCatalogRef({
+    tx_hash:      ev.txHash,
+    type:         'POST_INLINE',
+    sender:       ev.from,
+    post_id:      ev.postId,
+    username:     null,
+    block_height: ev.blockHeight,
+    tx_index:     ev.txIndex,
+    seen_at:      Date.now(),
+  })
+}
+
+async function handlePostStart(ev) {
+  const existing = await getPost(ev.from, ev.postId)
+
+  const record = {
+    author:           ev.from,
+    post_id:          ev.postId,
+    block_height:     ev.blockHeight,
+    tx_index:         ev.txIndex,
+    content:          null,
+    total_chunks:     ev.totalChunks,
+    chunks_received:  existing?.chunks_received ?? 0,
+    compressed:       ev.compressed,
+    content_hash:     ev.contentHash,
+    is_inline:        false,
+    is_reply:         ev.isReply,
+    reply_to_author:  ev.replyToAuthor,
+    reply_to_post_id: ev.replyToPostId,
+    status:           'pending',
+    first_seen_at:    existing?.first_seen_at ?? ev.blockHeight,
+  }
+
+  await putPost(record)
+
+  await putCatalogRef({
+    tx_hash:      ev.txHash,
+    type:         'POST_START',
+    sender:       ev.from,
+    post_id:      ev.postId,
+    username:     null,
+    block_height: ev.blockHeight,
+    tx_index:     ev.txIndex,
+    seen_at:      Date.now(),
+  })
+
+  await tryAssemble(ev.from, ev.postId)
+}
+
+async function handlePostChunk(ev) {
+  // Validate sender matches author of post_id in catalog
+  const existing = await getPost(ev.from, ev.postId)
+
+  await putChunk({
+    author:      ev.from,
+    post_id:     ev.postId,
+    chunk_index: ev.chunkIndex,
+    data:        ev.data,
+    data_len:    ev.dataLen,
+  })
+
+  if (existing) {
+    await updatePost(ev.from, ev.postId, {
+      chunks_received: (existing.chunks_received ?? 0) + 1,
+    })
+  } else {
+    await putPost({
+      author: ev.from, post_id: ev.postId, block_height: 0, tx_index: 0,
+      content: null, total_chunks: null, chunks_received: 1,
+      compressed: false, content_hash: null, is_inline: false,
+      is_reply: false, reply_to_author: null, reply_to_post_id: null,
+      status: 'pending', first_seen_at: 0,
+    })
+  }
+
+  await tryAssemble(ev.from, ev.postId)
+}
+
+async function handleFollow(ev) {
+  const { db } = await import('../db/schema.js')
+  const key = [ev.from, ev.targetAddress]
+  const existing = await db.follows.get(key)
+
+  const isNewer = !existing ||
+    ev.blockHeight > existing.block_height ||
+    (ev.blockHeight === existing.block_height && ev.txIndex > existing.tx_index)
+
+  if (!isNewer) return
+
+  await db.follows.put({
+    follower:     ev.from,
+    followee:     ev.targetAddress,
+    active:       ev.event === 'FOLLOW',
+    block_height: ev.blockHeight,
+    tx_index:     ev.txIndex,
+  })
+}
+```
+
+- [ ] **Step 4: Run all tests**
+
+```bash
+npm test
+```
+
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/indexer/ tests/indexer/
+git commit -m "feat: indexer handlers and chunk assembler (TDD)"
+```
+
+---
+
+## Task 7: Indexer Service
+
+**Files:** `src/indexer/IndexerService.js`, `src/indexer/useIndexer.js`
+
+- [ ] **Step 1: Create src/indexer/IndexerService.js**
+
+```javascript
+import { POST_CATALOG_ADDRESS, FOLLOW_CATALOG_ADDRESS } from '../protocol/constants.js'
+import { processPostCatalogTx, processFollowCatalogTx, processDerivedAddressTx } from './handlers.js'
+import { getSyncState, putSyncState, updateSyncState } from '../db/queries.js'
+import { addressBytesToNq, derivePostAddress, nqToAddressBytes } from '../protocol/address.js'
+import { db } from '../db/schema.js'
+
+const BATCH_SIZE = 2000
+
+export class IndexerService extends EventTarget {
+  constructor(rpc) {
+    super()
+    this.rpc = rpc
+  }
+
+  async syncPostCatalog() {
+    await this._deltaSync('post_catalog', POST_CATALOG_ADDRESS, processPostCatalogTx.bind(null))
+  }
+
+  async syncFollowCatalog() {
+    await this._deltaSync('follow_catalog', FOLLOW_CATALOG_ADDRESS, processFollowCatalogTx.bind(null))
+  }
+
+  async syncDerivedAddress(derivedNq, postAuthor, postId) {
+    const scopeKey = `post:${derivedNq}`
+    const state = await getSyncState(scopeKey)
+    if (state?.fully_synced) return
+
+    await this._fullSync(scopeKey, derivedNq, (tx) =>
+      processDerivedAddressTx(tx, derivedNq)
+    )
+  }
+
+  async startDeltaSync() {
+    await this.syncPostCatalog()
+    await this.syncFollowCatalog()
+
+    // Trigger derived address sync for any pending posts
+    const pending = await db.posts.where('status').equals('pending').toArray()
+    for (const post of pending) {
+      const authorBytes  = nqToAddressBytes(post.author)
+      const postIdBytes  = hexToBytes(post.post_id)  // already big-endian hex
+      const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
+      const derivedNq    = addressBytesToNq(derivedBytes)
+      this.syncDerivedAddress(derivedNq, post.author, post.post_id).catch(() => {})
+    }
+
+    this.dispatchEvent(new Event('catalog:updated'))
+  }
+
+  async _deltaSync(scopeKey, address, handler) {
+    const state    = await getSyncState(scopeKey)
+    const stopHash = state?.newest_seen_tx_hash ?? null
+
+    const txs = await this.rpc.getTransactionsByAddress(address, 500)
+    if (!txs.length) return
+
+    const toProcess = []
+    for (const raw of txs) {
+      if (raw.hash === stopHash) break
+      toProcess.push(raw)
+    }
+
+    await this._processBatch(toProcess, handler)
+
+    await putSyncState({
+      scope_key:            scopeKey,
+      newest_seen_tx_hash:  txs[0].hash,
+      oldest_synced_cursor: state?.oldest_synced_cursor ?? txs[txs.length - 1].hash,
+      fully_synced:         txs.length < 500,
+      last_synced_at:       Date.now(),
+    })
+  }
+
+  async _fullSync(scopeKey, address, handler) {
+    let cursor = null
+    while (true) {
+      const txs = await this.rpc.getTransactionsByAddress(address, 500, cursor)
+      if (!txs.length) break
+      await this._processBatch(txs, handler)
+      cursor = txs[txs.length - 1].hash
+      if (txs.length < 500) {
+        await putSyncState({ scope_key: scopeKey, fully_synced: true, last_synced_at: Date.now() })
+        break
+      }
+    }
+  }
+
+  async _processBatch(txs, handler) {
+    let count = 0
+    for (const raw of txs) {
+      await handler(this.rpc.normalizeTransaction(raw))
+      count++
+      if (count % BATCH_SIZE === 0) {
+        await new Promise(r => setTimeout(r, 0))
+      }
+    }
+  }
+}
+
+function hexToBytes(hex16) {
+  // hex16 is big-endian stored post_id — convert back to 8 LE bytes for address derivation
+  const reversed = []
+  for (let i = 0; i < 16; i += 2) reversed.unshift(parseInt(hex16.slice(i, i + 2), 16))
+  return new Uint8Array(reversed)
+}
+```
+
+- [ ] **Step 2: Create src/indexer/useIndexer.js**
+
+```javascript
+import { inject, provide } from 'vue'
+import { IndexerService } from './IndexerService.js'
+
+const INDEXER_KEY = Symbol('indexer')
+
+export function provideIndexer(rpc) {
+  const indexer = new IndexerService(rpc)
+  provide(INDEXER_KEY, indexer)
+  return indexer
+}
+
+export function useIndexer() {
+  return inject(INDEXER_KEY)
+}
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/indexer/IndexerService.js src/indexer/useIndexer.js
+git commit -m "feat: IndexerService singleton — catalog + derived address sync"
+```
+
+---
+
+## Task 8: Chain — RPC and Hub
+
+**Files:** `src/chain/rpc.js`, `src/chain/hub.js`
 
 - [ ] **Step 1: Create src/chain/rpc.js**
 
-Port from `nimiq-doom/web/src/nimiq-rpc.js` and add `sendRawTransaction` + `getBlockNumber` + `normalizeTransaction`. Key differences from doom: normalizeTransaction handles Albatross field names and this client supports posting, not just reading.
-
 ```javascript
-const DEFAULT_ENDPOINT  = 'https://rpc-mainnet.nimiqscan.com'
-const TESTNET_ENDPOINT  = 'https://rpc-testnet.nimiqwatch.com'
-const MAX_RETRIES       = 3
-const BASE_DELAY_MS     = 1000
-
 export class NimiqRPC {
-  constructor(url = DEFAULT_ENDPOINT) {
+  constructor(url = 'https://rpc.nimiq-testnet.com') {
     this.url = url
-    this._id = 1
+    this._id = 0
   }
 
-  setEndpoint(url) { this.url = url }
-
-  async call(method, params = []) {
-    let attempt = 0
-    while (true) {
-      try {
-        const res  = await fetch(this.url, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ jsonrpc: '2.0', id: this._id++, method, params }),
-        })
-        const json = await res.json()
-        if (json.error) throw new Error(json.error.message ?? JSON.stringify(json.error))
-        return json.result
-      } catch (err) {
-        if (++attempt >= MAX_RETRIES) throw err
-        await new Promise(r => setTimeout(r, BASE_DELAY_MS * 2 ** (attempt - 1)))
-      }
-    }
+  async _call(method, params = []) {
+    const res = await fetch(this.url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ jsonrpc: '2.0', id: ++this._id, method, params }),
+    })
+    if (!res.ok) throw new Error(`RPC HTTP ${res.status}`)
+    const json = await res.json()
+    if (json.error) throw new Error(json.error.message)
+    return json.result
   }
 
   normalizeTransaction(raw) {
@@ -1211,767 +1655,134 @@ export class NimiqRPC {
     }
   }
 
-  async getBlockNumber() {
-    const result = await this.call('getBlockNumber')
-    return typeof result === 'object' ? result.blockNumber ?? result : result
-  }
-
-  // Returns up to `max` transactions for `address`, starting after `startAt` hash.
-  // Newest first. startAt=null returns the most recent page.
-  async getTransactionsByAddress(address, max = 500, startAt = null) {
-    const params = startAt
-      ? { address, max, startAt }
-      : { address, max }
-    let result
-    try {
-      result = await this.call('getTransactionsByAddress', [params])
-    } catch {
-      result = await this.call('getTransactionsByAddress', [address, max, startAt].filter(Boolean))
-    }
-    const txs = Array.isArray(result) ? result : (result?.data ?? [])
-    return txs.map(tx => this.normalizeTransaction(tx))
+  async getTransactionsByAddress(address, limit = 500, startAt = null) {
+    const params = [address, limit]
+    if (startAt) params.push(startAt)
+    const result = await this._call('getTransactionsByAddress', params)
+    return (result ?? []).map(r => this.normalizeTransaction(r))
   }
 
   async getTransactionByHash(hash) {
-    const result = await this.call('getTransactionByHash', [hash])
-    if (!result) return null
-    return this.normalizeTransaction(result)
+    const result = await this._call('getTransactionByHash', [hash])
+    return result ? this.normalizeTransaction(result) : null
   }
 
-  // Broadcasts a signed, serialized transaction (hex string).
+  async getBlockNumber() {
+    return this._call('blockNumber', [])
+  }
+
   async sendRawTransaction(serializedHex) {
-    return this.call('sendRawTransaction', [serializedHex])
+    return this._call('sendRawTransaction', [serializedHex])
   }
 }
 
 export const rpc = new NimiqRPC()
 ```
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/chain/rpc.js
-git commit -m "feat: NimiqRPC client with normalizeTransaction and sendRawTransaction"
-```
-
----
-
-## Task 8: Hub Client
-
-**Files:**
-- Create: `src/chain/hub.js`
-
-Port from `nimiq-2048/frontend/src/shared/composables/useHub.js`. Add `signTransaction` for posting. The Hub `signTransaction` method returns a `{ serializedTx, hash }` object — verify exact field names against `@nimiq/hub-api` docs when wiring up the first real post.
-
-- [ ] **Step 1: Create src/chain/hub.js**
+- [ ] **Step 2: Create src/chain/hub.js**
 
 ```javascript
 import HubApi from '@nimiq/hub-api'
 
-// Detect network from hostname (mirrors nimiq-2048 pattern)
-function getHubEndpoint() {
-  const host = window.location.hostname
-  if (host === 'localhost' || host === '127.0.0.1' || host.includes('testnet')) {
-    return HubApi.DEFAULT_ENDPOINT_TESTNET ?? 'https://hub.nimiq-testnet.com'
-  }
-  return HubApi.DEFAULT_ENDPOINT ?? 'https://hub.nimiq.com'
-}
-
-const IFRAME_TIMEOUT_MS = 6000
-
 let _hub = null
+
 function getHub() {
-  if (!_hub) _hub = new HubApi(getHubEndpoint())
+  if (!_hub) _hub = new HubApi('https://hub.nimiq-testnet.com')
   return _hub
 }
 
 export function useHub() {
-  // Preload Hub iframe to reduce cold-start latency on first signing action.
-  function warmup() {
-    try { getHub().iframeRequest(HubApi.RequestType.SIGN_MESSAGE, {}, window.location.origin) } catch {}
-  }
+  const hub = getHub()
 
-  // Sign a message for authentication (used during Hub login flow).
-  async function signMessage(message, signer) {
-    return getHub().signMessage({
+  async function login() {
+    const result = await hub.checkout({
       appName: 'NimFeed',
-      message,
-      signer,
+      request: {
+        kind: 'checkout',
+        version: 2,
+        currency: 'NIM',
+        callbackUrl: window.location.href,
+        fiatCurrency: 'USD',
+        fiatAmount: 0,
+        items: [{ label: 'NimFeed login', amount: 0 }],
+      },
+    })
+    return result
+  }
+
+  async function getAddress() {
+    const accs = await hub.list({ appName: 'NimFeed' })
+    return accs?.[0]?.addresses?.[0] ?? null
+  }
+
+  async function signTransaction(txParams) {
+    return hub.signTransaction({
+      appName: 'NimFeed',
+      ...txParams,
     })
   }
 
-  // Attempt iframe signing first; fall back to popup on timeout.
-  async function signMessagePreferIframe(message, signer) {
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const timer = setTimeout(() => {
-        if (!settled) { settled = true; reject(new Error('iframe-timeout')) }
-      }, IFRAME_TIMEOUT_MS)
-
-      getHub().iframeRequest(HubApi.RequestType.SIGN_MESSAGE, {
-        appName: 'NimFeed', message, signer,
-      }, window.location.origin)
-        .then(result => { if (!settled) { settled = true; clearTimeout(timer); resolve(result) } })
-        .catch(err   => { if (!settled) { settled = true; clearTimeout(timer); reject(err) } })
-    })
+  // Warmup the Hub iframe early to reduce popup delay
+  function warmup() {
+    try { hub.checkRedirectResponse() } catch {}
   }
 
-  // Sign a Nimiq 2.0 basic transaction with an extra data payload.
-  // VERIFY: exact field names in @nimiq/hub-api v1.13 for Albatross signTransaction.
-  // Expected return shape: { serializedTx: string (hex), hash: string }
-  async function signTransaction({ sender, recipient, value, fee = 0, extraData, validityStartHeight = '+0' }) {
-    return getHub().signTransaction({
-      appName:             'NimFeed',
-      sender,
-      recipient,
-      value,
-      fee,
-      extraData,
-      validityStartHeight: String(validityStartHeight),
-    })
-  }
-
-  return { warmup, signMessage, signMessagePreferIframe, signTransaction }
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/chain/hub.js
-git commit -m "feat: Hub client with signMessage and signTransaction"
-```
-
----
-
-## Task 9: Indexer Handlers
-
-**Files:**
-- Create: `src/indexer/handlers.js`
-- Create: `tests/indexer/handlers.test.js`
-
-- [ ] **Step 1: Write failing tests**
-
-Create `tests/indexer/handlers.test.js`:
-
-```javascript
-import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from '../../src/db/schema.js'
-import { processTransaction } from '../../src/indexer/handlers.js'
-import { buildUserReg, buildProfileSet, buildPostStart, buildPostAnnounce } from '../../src/protocol/encoder.js'
-import { bytesToHex, generatePostId } from '../../src/protocol/utils.js'
-import { CATALOG_ADDRESS } from '../../src/protocol/constants.js'
-
-beforeEach(async () => {
-  await db.delete()
-  await db.open()
-})
-
-function tx(payload, from, to, blockHeight = 100, txIndex = 0) {
-  return { hash: Math.random().toString(36), from, to, data: bytesToHex(payload), blockHeight, transactionIndex: txIndex, timestamp: 0 }
-}
-
-describe('processTransaction', () => {
-  it('indexes USER_REG into users and catalog_refs', async () => {
-    await processTransaction(tx(buildUserReg(), 'NQ01 USER', CATALOG_ADDRESS))
-    const user = await db.users.get('NQ01 USER')
-    expect(user).toBeTruthy()
-    expect(user.registered_height).toBe(100)
-    const refs = await db.catalog_refs.where('type').equals('USER_REG').toArray()
-    expect(refs).toHaveLength(1)
-  })
-
-  it('rejects USER_REG not sent to catalog', async () => {
-    await processTransaction(tx(buildUserReg(), 'NQ01 USER', 'NQ02 OTHER'))
-    const user = await db.users.get('NQ01 USER')
-    expect(user).toBeUndefined()
-  })
-
-  it('indexes PROFILE_SET self-tx into users', async () => {
-    await db.users.put({ address: 'NQ01 USER', registered_height: 100 })
-    await processTransaction(tx(buildProfileSet({ displayName: 'Alice', bio: 'hi' }), 'NQ01 USER', 'NQ01 USER'))
-    const user = await db.users.get('NQ01 USER')
-    expect(user.display_name).toBe('Alice')
-  })
-
-  it('rejects PROFILE_SET that is not a self-tx', async () => {
-    await db.users.put({ address: 'NQ01 USER', registered_height: 100 })
-    await processTransaction(tx(buildProfileSet({ displayName: 'Alice', bio: null }), 'NQ01 USER', 'NQ02 OTHER'))
-    const user = await db.users.get('NQ01 USER')
-    expect(user.display_name).toBeUndefined()
-  })
-
-  it('indexes POST_START as pending post', async () => {
-    const postIdBuf = generatePostId()
-    const hash8     = new Uint8Array(8).fill(1)
-    const payload   = buildPostStart({ postIdBuf, totalChunks: 2, flags: 0, contentHash: hash8, replyToPostId: null, replyToAuthor: null })
-    await processTransaction(tx(payload, 'NQ01 USER', 'NQ01 USER'))
-    const posts = await db.posts.where('author').equals('NQ01 USER').toArray()
-    expect(posts).toHaveLength(1)
-    expect(posts[0].status).toBe('pending')
-    expect(posts[0].total_chunks).toBe(2)
-  })
-
-  it('indexes POST_ANNOUNCE into catalog_refs', async () => {
-    const postIdBuf = generatePostId()
-    await processTransaction(tx(buildPostAnnounce({ postIdBuf }), 'NQ01 USER', CATALOG_ADDRESS))
-    const refs = await db.catalog_refs.where('type').equals('POST_ANNOUNCE').toArray()
-    expect(refs).toHaveLength(1)
-    expect(refs[0].sender).toBe('NQ01 USER')
-  })
-})
-```
-
-- [ ] **Step 2: Run — expect failures**
-
-```bash
-npm test tests/indexer/handlers.test.js
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Create src/indexer/handlers.js**
-
-```javascript
-import { TYPES, CATALOG_ADDRESS } from '../protocol/constants.js'
-import { parseTransaction } from '../protocol/decoder.js'
-import { db } from '../db/schema.js'
-import { putUser, getUser, updateUser, putPost, getPost, updatePost, putChunk, putCatalogRef, putUsernameClaim } from '../db/queries.js'
-import { tryAssemble } from './assembler.js'
-
-function isValidCatalogEvent(tx) { return tx.to === CATALOG_ADDRESS }
-function isValidSelfTx(tx)       { return tx.from === tx.to }
-
-export async function processTransaction(tx) {
-  const event = parseTransaction(tx)
-  if (!event) return
-
-  switch (event.type) {
-    case TYPES.USER_REG:
-      if (!isValidCatalogEvent(tx)) return
-      return handleUserReg(event, tx)
-    case TYPES.USERNAME_CLAIM:
-      if (!isValidCatalogEvent(tx)) return
-      return handleUsernameClaim(event, tx)
-    case TYPES.PROFILE_SET:
-      if (!isValidSelfTx(tx)) return
-      return handleProfileSet(event, tx)
-    case TYPES.POST_START:
-      if (!isValidSelfTx(tx)) return
-      return handlePostStart(event, tx)
-    case TYPES.POST_CHUNK:
-      if (!isValidSelfTx(tx)) return
-      return handlePostChunk(event, tx)
-    case TYPES.POST_ANNOUNCE:
-      if (!isValidCatalogEvent(tx)) return
-      return handlePostAnnounce(event, tx)
-    // FOLLOW, UNFOLLOW, LIKE, UNLIKE handled in Phase 2 and 3
-  }
-}
-
-async function handleUserReg(event, tx) {
-  const existing = await getUser(event.from)
-  if (!existing) {
-    await putUser({
-      address:           event.from,
-      display_name:      null,
-      bio:               null,
-      registered_height: event.blockHeight,
-      username:          null,
-      last_synced_height: 0,
-    })
-  }
-  await putCatalogRef({
-    tx_hash:      event.txHash,
-    type:         'USER_REG',
-    sender:       event.from,
-    post_id:      null,
-    username:     null,
-    block_height: event.blockHeight,
-    tx_index:     event.txIndex,
-    seen_at:      Date.now(),
-  })
-}
-
-async function handleUsernameClaim(event, tx) {
-  await putUsernameClaim({
-    username:     event.username,
-    address:      event.from,
-    block_height: event.blockHeight,
-    tx_index:     event.txIndex,
-    tx_hash:      event.txHash,
-  })
-  // Update users.username cache if this is the winning claim
-  const existing = await getUser(event.from)
-  if (!existing) return
-  const winnerHeight   = existing.username_height ?? Infinity
-  const winnerTxIndex  = existing.username_tx_index ?? Infinity
-  const isEarlier = event.blockHeight < winnerHeight ||
-    (event.blockHeight === winnerHeight && event.txIndex < winnerTxIndex)
-  if (!existing.username || isEarlier) {
-    await updateUser(event.from, {
-      username:          event.username,
-      username_height:   event.blockHeight,
-      username_tx_index: event.txIndex,
-    })
-  }
-  await putCatalogRef({
-    tx_hash:      event.txHash,
-    type:         'USERNAME_CLAIM',
-    sender:       event.from,
-    post_id:      null,
-    username:     event.username,
-    block_height: event.blockHeight,
-    tx_index:     event.txIndex,
-    seen_at:      Date.now(),
-  })
-}
-
-async function handleProfileSet(event, tx) {
-  const existing = await getUser(event.from)
-  if (!existing) return  // must have USER_REG first
-  const fields = {}
-  if (event.displayName !== null) fields.display_name = event.displayName
-  if (event.bio !== null)         fields.bio           = event.bio
-  await updateUser(event.from, fields)
-}
-
-async function handlePostStart(event, tx) {
-  const existing = await getPost(event.from, event.postId)
-  const chunksReceived = existing?.chunks_received ?? 0
-  await putPost({
-    author:          event.from,
-    post_id:         event.postId,
-    block_height:    event.blockHeight,
-    tx_index:        event.txIndex,
-    content:         null,
-    total_chunks:    event.totalChunks,
-    chunks_received: chunksReceived,
-    compressed:      event.compressed,
-    content_hash:    event.contentHash,
-    is_reply:        event.isReply,
-    reply_to_author: event.replyToAuthor,
-    reply_to_post_id: event.replyToPostId,
-    status:          'pending',
-    first_seen_at:   event.blockHeight,
-  })
-  await tryAssemble(event.from, event.postId)
-}
-
-async function handlePostChunk(event, tx) {
-  await putChunk({
-    author:      event.from,
-    post_id:     event.postId,
-    chunk_index: event.chunkIndex,
-    data:        event.data,
-    data_len:    event.data.length,
-  })
-  const post = await getPost(event.from, event.postId)
-  if (!post) {
-    // POST_START not yet seen — create placeholder
-    await putPost({
-      author:          event.from,
-      post_id:         event.postId,
-      block_height:    event.blockHeight,
-      tx_index:        event.txIndex,
-      content:         null,
-      total_chunks:    null,
-      chunks_received: 1,
-      compressed:      false,
-      content_hash:    '',
-      is_reply:        false,
-      reply_to_author: null,
-      reply_to_post_id: null,
-      status:          'pending',
-      first_seen_at:   event.blockHeight,
-    })
-  } else {
-    await updatePost(event.from, event.postId, { chunks_received: (post.chunks_received ?? 0) + 1 })
-    await tryAssemble(event.from, event.postId)
-  }
-}
-
-async function handlePostAnnounce(event, tx) {
-  await putCatalogRef({
-    tx_hash:      event.txHash,
-    type:         'POST_ANNOUNCE',
-    sender:       event.from,
-    post_id:      event.postId,
-    username:     null,
-    block_height: event.blockHeight,
-    tx_index:     event.txIndex,
-    seen_at:      Date.now(),
-  })
-}
-```
-
-- [ ] **Step 4: Run — expect pass**
-
-```bash
-npm test tests/indexer/handlers.test.js
-```
-
-Expected: All pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/indexer/handlers.js tests/indexer/handlers.test.js
-git commit -m "feat: indexer event handlers for Phase 1 event types"
-```
-
----
-
-## Task 10: Chunk Assembler
-
-**Files:**
-- Create: `src/indexer/assembler.js`
-- Create: `tests/indexer/assembler.test.js`
-
-- [ ] **Step 1: Write failing tests**
-
-Create `tests/indexer/assembler.test.js`:
-
-```javascript
-import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from '../../src/db/schema.js'
-import { tryAssemble } from '../../src/indexer/assembler.js'
-import { encodePost } from '../../src/protocol/compression.js'
-import { bytesToHex, generatePostId, postIdToHex } from '../../src/protocol/utils.js'
-
-beforeEach(async () => {
-  await db.delete()
-  await db.open()
-})
-
-async function seedPost(text) {
-  const { payload, compressed, contentHash, chunks } = await encodePost(text)
-  const postIdBuf = generatePostId()
-  const post_id   = postIdToHex(postIdBuf)
-  const author    = 'NQ01 TEST'
-
-  await db.posts.put({
-    author, post_id,
-    block_height: 100, tx_index: 0,
-    content: null, total_chunks: chunks.length,
-    chunks_received: chunks.length,
-    compressed, content_hash: bytesToHex(contentHash),
-    is_reply: false, reply_to_author: null, reply_to_post_id: null,
-    status: 'pending', first_seen_at: 100,
-  })
-
-  for (let i = 0; i < chunks.length; i++) {
-    await db.post_chunks.put({ author, post_id, chunk_index: i, data: chunks[i], data_len: chunks[i].length })
-  }
-
-  return { author, post_id, text }
-}
-
-describe('tryAssemble', () => {
-  it('assembles chunks into post content', async () => {
-    const { author, post_id, text } = await seedPost('Hello NimFeed!')
-    await tryAssemble(author, post_id)
-    const post = await db.posts.get([author, post_id])
-    expect(post.status).toBe('complete')
-    expect(post.content).toBe(text)
-  })
-
-  it('deletes chunks after successful assembly', async () => {
-    const { author, post_id } = await seedPost('Clean up chunks please')
-    await tryAssemble(author, post_id)
-    const remaining = await db.post_chunks.where('[author+post_id+chunk_index]')
-      .between([author, post_id, 0], [author, post_id, 255], true, true).count()
-    expect(remaining).toBe(0)
-  })
-
-  it('marks post invalid_hash on tampered data', async () => {
-    const { author, post_id } = await seedPost('Tamper test')
-    // Corrupt one chunk
-    const chunks = await db.post_chunks.where('[author+post_id+chunk_index]')
-      .between([author, post_id, 0], [author, post_id, 255], true, true).toArray()
-    if (chunks.length) {
-      const bad = new Uint8Array(chunks[0].data)
-      bad[0] = ~bad[0]
-      await db.post_chunks.put({ ...chunks[0], data: bad })
-    }
-    await tryAssemble(author, post_id)
-    const post = await db.posts.get([author, post_id])
-    expect(post.status).toBe('invalid_hash')
-  })
-
-  it('does nothing if total_chunks is null (POST_START not yet seen)', async () => {
-    await db.posts.put({
-      author: 'NQ01 TEST', post_id: 'deadbeef00000001',
-      block_height: 100, tx_index: 0,
-      content: null, total_chunks: null, chunks_received: 1,
-      compressed: false, content_hash: '',
-      is_reply: false, reply_to_author: null, reply_to_post_id: null,
-      status: 'pending', first_seen_at: 100,
-    })
-    await tryAssemble('NQ01 TEST', 'deadbeef00000001')
-    const post = await db.posts.get(['NQ01 TEST', 'deadbeef00000001'])
-    expect(post.status).toBe('pending')
-  })
-})
-```
-
-- [ ] **Step 2: Run — expect failures**
-
-```bash
-npm test tests/indexer/assembler.test.js
-```
-
-Expected: FAIL.
-
-- [ ] **Step 3: Create src/indexer/assembler.js**
-
-```javascript
-import { db } from '../db/schema.js'
-import { getPost, updatePost, getChunks, deleteChunks } from '../db/queries.js'
-import { inflateRaw } from '../protocol/compression.js'
-import { bytesToHex } from '../protocol/utils.js'
-
-export async function tryAssemble(author, post_id) {
-  const post = await getPost(author, post_id)
-  if (!post || post.total_chunks === null) return
-  if (post.chunks_received < post.total_chunks) return
-
-  const chunks = await getChunks(author, post_id)
-  if (chunks.length < post.total_chunks) return
-
-  // Sort by chunk_index — defensive, should already be ordered
-  chunks.sort((a, b) => a.chunk_index - b.chunk_index)
-
-  // Concatenate chunk data
-  const totalBytes = chunks.reduce((sum, c) => sum + c.data.length, 0)
-  const encoded    = new Uint8Array(totalBytes)
-  let offset = 0
-  for (const chunk of chunks) {
-    encoded.set(chunk.data, offset)
-    offset += chunk.data.length
-  }
-
-  // Verify hash BEFORE decompression
-  const digest = await crypto.subtle.digest('SHA-256', encoded)
-  const hash8  = bytesToHex(new Uint8Array(digest).slice(0, 8))
-  if (hash8 !== post.content_hash) {
-    await updatePost(author, post_id, { status: 'invalid_hash' })
-    return
-  }
-
-  // Decompress if flagged
-  const payload = post.compressed ? await inflateRaw(encoded) : encoded
-  const content = new TextDecoder().decode(payload)
-
-  await updatePost(author, post_id, { status: 'complete', content })
-  await deleteChunks(author, post_id)
-}
-```
-
-- [ ] **Step 4: Run — expect pass**
-
-```bash
-npm test tests/indexer/assembler.test.js
-```
-
-Expected: All pass.
-
-- [ ] **Step 5: Run all tests**
-
-```bash
-npm test
-```
-
-Expected: All pass across all test files.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/indexer/assembler.js tests/indexer/assembler.test.js
-git commit -m "feat: chunk assembler with hash verification and decompression"
-```
-
----
-
-## Task 11: IndexerService
-
-**Files:**
-- Create: `src/indexer/IndexerService.js`
-- Create: `src/indexer/useIndexer.js`
-
-- [ ] **Step 1: Create src/indexer/IndexerService.js**
-
-```javascript
-import { rpc } from '../chain/rpc.js'
-import { processTransaction } from './handlers.js'
-import { getSyncState, putSyncState, updateSyncState } from '../db/queries.js'
-import { CATALOG_ADDRESS, SYNC_PAGE_SIZE, SYNC_TX_BUDGET_PER_TICK, SYNC_WALL_CLOCK_BUDGET_MS } from '../protocol/constants.js'
-
-class IndexerService extends EventTarget {
-  constructor() {
-    super()
-    this._running = false
-  }
-
-  async syncAddress(address, { latestPageOnly = false } = {}) {
-    const state = await getSyncState(address) ?? {
-      address,
-      scope:                 address === CATALOG_ADDRESS ? 'catalog' : 'user',
-      newest_seen_tx_hash:   null,
-      oldest_synced_cursor:  null,
-      fully_synced:          false,
-      last_synced_at:        0,
-    }
-
-    // Delta sync — fetch newest page, stop when we hit known territory
-    const newPage = await rpc.getTransactionsByAddress(address, SYNC_PAGE_SIZE, null)
-    if (newPage.length) {
-      let processed = 0
-      for (const tx of newPage) {
-        if (tx.hash === state.newest_seen_tx_hash) break
-        await processTransaction(tx)
-        processed++
-      }
-      state.newest_seen_tx_hash = newPage[0].hash
-      state.last_synced_at      = Date.now()
-      await putSyncState(state)
-      if (processed) this.dispatchEvent(new CustomEvent('updated', { detail: { address } }))
-    }
-
-    if (latestPageOnly || state.fully_synced) return
-
-    // Backfill — paginate from oldest cursor toward genesis
-    await this._backfill(address, state)
-  }
-
-  async _backfill(address, state) {
-    const start = Date.now()
-    let processed = 0
-
-    while (true) {
-      if (Date.now() - start > SYNC_WALL_CLOCK_BUDGET_MS) break
-
-      const page = await rpc.getTransactionsByAddress(address, SYNC_PAGE_SIZE, state.oldest_synced_cursor)
-      if (!page.length) { state.fully_synced = true; break }
-
-      for (const tx of page) {
-        await processTransaction(tx)
-        if (++processed >= SYNC_TX_BUDGET_PER_TICK) {
-          await new Promise(r => setTimeout(r, 0))  // yield to event loop
-          processed = 0
-        }
-      }
-
-      state.oldest_synced_cursor = page[page.length - 1].hash
-      await putSyncState(state)
-      this.dispatchEvent(new CustomEvent('updated', { detail: { address } }))
-
-      if (page.length < SYNC_PAGE_SIZE) { state.fully_synced = true; break }
-    }
-
-    await putSyncState(state)
-  }
-
-  async syncCatalog() { return this.syncAddress(CATALOG_ADDRESS) }
-
-  async syncUser(address, opts = {}) { return this.syncAddress(address, opts) }
-
-  startDeltaSync(intervalMs = 60_000) {
-    if (this._deltaInterval) return
-    this._deltaInterval = setInterval(() => this.syncCatalog(), intervalMs)
-    // Also sync on tab focus
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') this.syncCatalog()
-    })
-  }
-
-  stopDeltaSync() {
-    clearInterval(this._deltaInterval)
-    this._deltaInterval = null
-  }
-}
-
-export const indexer = new IndexerService()
-```
-
-- [ ] **Step 2: Create src/indexer/useIndexer.js**
-
-```javascript
-import { ref, onMounted, onUnmounted } from 'vue'
-import { indexer } from './IndexerService.js'
-
-export function useIndexer() {
-  const syncing = ref(false)
-
-  function onUpdated(e) {
-    // Composables that care about specific addresses can filter e.detail.address
-  }
-
-  onMounted(() => indexer.addEventListener('updated', onUpdated))
-  onUnmounted(() => indexer.removeEventListener('updated', onUpdated))
-
-  async function syncCatalog() {
-    syncing.value = true
-    try { await indexer.syncCatalog() } finally { syncing.value = false }
-  }
-
-  async function syncUser(address, opts) {
-    return indexer.syncUser(address, opts)
-  }
-
-  return { syncing, syncCatalog, syncUser }
+  return { login, getAddress, signTransaction, warmup }
 }
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/indexer/IndexerService.js src/indexer/useIndexer.js
-git commit -m "feat: IndexerService with dual-cursor sync and delta sync"
+git add src/chain/
+git commit -m "feat: RPC client and Hub composable"
 ```
 
 ---
 
-## Task 12: Pinia Stores
+## Task 9: Stores
 
-**Files:**
-- Create: `src/stores/auth.js`
-- Create: `src/stores/feed.js`
-- Create: `src/stores/ui.js`
+**Files:** `src/stores/auth.js`, `src/stores/feed.js`, `src/stores/ui.js`
 
 - [ ] **Step 1: Create src/stores/auth.js**
 
 ```javascript
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-const LS_KEY = 'nimfeed_last_address'
+import { getUser } from '../db/queries.js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const address     = ref(localStorage.getItem(LS_KEY) ?? null)
+  const address     = ref(localStorage.getItem('nimfeed_address') ?? null)
   const displayName = ref(null)
   const username    = ref(null)
-  const registered  = ref(false)
+  const hasClaimed  = ref(false)
 
   const isLoggedIn = computed(() => !!address.value)
 
-  function setUser({ addr, display_name, uname, reg }) {
-    address.value     = addr
-    displayName.value = display_name ?? null
-    username.value    = uname ?? null
-    registered.value  = !!reg
-    if (addr) localStorage.setItem(LS_KEY, addr)
+  function setAddress(addr) {
+    address.value = addr
+    if (addr) localStorage.setItem('nimfeed_address', addr)
+    else localStorage.removeItem('nimfeed_address')
   }
 
-  function clearUser() {
-    address.value     = null
+  async function loadProfile() {
+    if (!address.value) return
+    const user = await getUser(address.value)
+    if (user) {
+      displayName.value = user.display_name
+      username.value    = user.username
+      hasClaimed.value  = !!user.username
+    }
+  }
+
+  function logout() {
+    setAddress(null)
     displayName.value = null
     username.value    = null
-    registered.value  = false
-    localStorage.removeItem(LS_KEY)
+    hasClaimed.value  = false
   }
 
-  return { address, displayName, username, registered, isLoggedIn, setUser, clearUser }
+  return { address, displayName, username, hasClaimed, isLoggedIn, setAddress, loadProfile, logout }
 })
 ```
 
@@ -1982,19 +1793,21 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useFeedStore = defineStore('feed', () => {
-  const posts    = ref([])   // array of post objects (≤50)
-  const loading  = ref(false)
-  const hasMore  = ref(true)
+  const posts   = ref([])
+  const loading = ref(false)
+  const hasMore = ref(true)
 
-  function setPosts(newPosts)     { posts.value = newPosts }
-  function appendPosts(more)      { posts.value = [...posts.value, ...more].slice(0, 50) }
-  function updatePost(author, post_id, fields) {
-    const idx = posts.value.findIndex(p => p.author === author && p.post_id === post_id)
-    if (idx !== -1) posts.value[idx] = { ...posts.value[idx], ...fields }
+  function appendPosts(newPosts) {
+    posts.value.push(...newPosts)
+    if (posts.value.length > 50) posts.value = posts.value.slice(0, 50)
   }
-  function clear() { posts.value = []; hasMore.value = true }
 
-  return { posts, loading, hasMore, setPosts, appendPosts, updatePost, clear }
+  function clear() {
+    posts.value = []
+    hasMore.value = true
+  }
+
+  return { posts, loading, hasMore, appendPosts, clear }
 })
 ```
 
@@ -2007,180 +1820,210 @@ import { ref } from 'vue'
 export const useUiStore = defineStore('ui', () => {
   const loginModalOpen    = ref(false)
   const composerOpen      = ref(false)
-  const filterNoUserReg   = ref(true)   // default: hide unregistered users
-  const filterMinAgBlocks = ref(10)     // default: hide accounts < 10 blocks old
+  const filterNoClaim     = ref(true)    // hide posts from unclaimed addresses
+  const filterMinAgBlocks = ref(10)
 
-  return { loginModalOpen, composerOpen, filterNoUserReg, filterMinAgBlocks }
+  return { loginModalOpen, composerOpen, filterNoClaim, filterMinAgBlocks }
 })
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/stores/auth.js src/stores/feed.js src/stores/ui.js
-git commit -m "feat: Pinia stores for auth, feed, and UI state"
+git add src/stores/
+git commit -m "feat: Pinia stores — auth, feed, ui"
 ```
 
 ---
 
-## Task 13: usePost Composable
+## Task 10: Composables
 
-**Files:**
-- Create: `src/composables/usePost.js`
+**Files:** `src/composables/usePost.js`, `src/composables/useFeed.js`, `src/composables/useProfile.js`
 
 - [ ] **Step 1: Create src/composables/usePost.js**
 
 ```javascript
 import { ref } from 'vue'
+import { useAuthStore } from '../stores/auth.js'
 import { useHub } from '../chain/hub.js'
 import { rpc } from '../chain/rpc.js'
-import { encodePost } from '../protocol/compression.js'
-import { buildPostStart, buildPostChunk, buildPostAnnounce } from '../protocol/encoder.js'
-import { generatePostId, postIdToHex, bytesToHex } from '../protocol/utils.js'
-import { TX_VALUE_LUNA, CATALOG_ADDRESS, MAX_POST_CHARS } from '../protocol/constants.js'
-import { db } from '../db/schema.js'
-import { useAuthStore } from '../stores/auth.js'
+import { buildProfileClaim, buildPostInline, buildPostStart, buildPostChunk, splitInto50ByteChunks } from '../protocol/encoder.js'
+import { generatePostId, postIdToHex } from '../protocol/utils.js'
+import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../protocol/address.js'
+import { deflateRaw, shouldCompress } from '../protocol/compression.js'
+import { POST_CATALOG_ADDRESS, TX_VALUE_LUNA, INLINE_MAX_NO_REPLY, INLINE_MAX_WITH_REPLY } from '../protocol/constants.js'
+import { putPost } from '../db/queries.js'
 
 export function usePost() {
-  const hub         = useHub()
-  const auth        = useAuthStore()
-  const submitting  = ref(false)
-  const error       = ref(null)
+  const auth    = useAuthStore()
+  const hub     = useHub()
+  const sending = ref(false)
+  const error   = ref(null)
 
-  async function submit(text, { replyToAuthor = null, replyToPostId = null } = {}) {
+  async function claimProfile(username, displayName) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
-    if (!text?.trim())    throw new Error('Post text is empty')
-    if (text.length > MAX_POST_CHARS) throw new Error(`Post exceeds ${MAX_POST_CHARS} chars`)
+    const payload = buildProfileClaim(username, displayName)
+    const signed  = await hub.signTransaction({
+      sender:    auth.address,
+      recipient: POST_CATALOG_ADDRESS,
+      value:     TX_VALUE_LUNA,
+      fee:       0,
+      extraData: payload,
+    })
+    await rpc.sendRawTransaction(signed.serializedTx)
+  }
 
-    submitting.value = true
-    error.value      = null
+  function txCount(text, isReply) {
+    const raw    = new TextEncoder().encode(text)
+    const limit  = isReply ? INLINE_MAX_WITH_REPLY : INLINE_MAX_NO_REPLY
+    if (raw.length <= limit) return 1
+    // Estimate chunks (compression varies); show conservative upper bound
+    const chunks = Math.ceil(raw.length / 50) + 1
+    return 1 + chunks
+  }
+
+  async function submitPost(text, { replyToAuthor = null, replyToPostId = null } = {}) {
+    if (!auth.isLoggedIn) throw new Error('Not logged in')
+    if (sending.value) return
+    sending.value = true
+    error.value   = null
 
     try {
-      const { payload, compressed, contentHash, chunks } = await encodePost(text)
-      const postIdBuf = generatePostId()
-      const postIdHex = postIdToHex(postIdBuf)
-      const flags     = (compressed ? 0x01 : 0x00) | (replyToAuthor ? 0x02 : 0x00)
-      const height    = await rpc.getBlockNumber()
+      const raw    = new TextEncoder().encode(text)
+      const isReply = !!(replyToAuthor && replyToPostId)
+      const limit  = isReply ? INLINE_MAX_WITH_REPLY : INLINE_MAX_NO_REPLY
 
-      // Build all transaction payloads
-      const txPayloads = [
-        { to: auth.address, data: buildPostStart({ postIdBuf, totalChunks: chunks.length, flags, contentHash, replyToPostId: null, replyToAuthor: null }) },
-        ...chunks.map((chunk, i) => ({ to: auth.address, data: buildPostChunk({ postIdBuf, chunkIndex: i, data: chunk }) })),
-        { to: CATALOG_ADDRESS, data: buildPostAnnounce({ postIdBuf }) },
-      ]
-
-      // Sign all transactions sequentially via Hub
-      const signed = []
-      for (const { to, data } of txPayloads) {
-        const result = await hub.signTransaction({
-          sender:              auth.address,
-          recipient:           to,
-          value:               TX_VALUE_LUNA,
-          fee:                 0,
-          extraData:           data,
-          validityStartHeight: `+${signed.length}`,  // stagger validity
-        })
-        signed.push(result)
+      if (raw.length <= limit) {
+        await _submitInline(text, isReply, replyToAuthor, replyToPostId)
+      } else {
+        await _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId)
       }
-
-      // Optimistic local write so post appears immediately in profile feed
-      await db.posts.put({
-        author:           auth.address,
-        post_id:          postIdHex,
-        block_height:     height,
-        tx_index:         0,
-        content:          text,
-        total_chunks:     chunks.length,
-        chunks_received:  chunks.length,
-        compressed,
-        content_hash:     bytesToHex(contentHash),
-        is_reply:         !!replyToAuthor,
-        reply_to_author:  replyToAuthor,
-        reply_to_post_id: replyToPostId,
-        status:           'pending',
-        first_seen_at:    height,
-      })
-
-      // Broadcast: POST_START first, chunks in order, POST_ANNOUNCE last
-      for (const tx of signed) {
-        await rpc.sendRawTransaction(tx.serializedTx)
-      }
-
-      // Poll for confirmation on the announce tx
-      watchConfirmation(auth.address, postIdHex, signed[signed.length - 1].hash)
-
-      return postIdHex
-    } catch (err) {
-      error.value = err.message
-      throw err
+    } catch (e) {
+      error.value = e.message
+      throw e
     } finally {
-      submitting.value = false
+      sending.value = false
     }
   }
 
-  function watchConfirmation(author, post_id, announceTxHash) {
-    const MAX_ATTEMPTS = 24  // 120s at 5s interval
-    let attempts = 0
-    const interval = setInterval(async () => {
-      try {
-        const tx = await rpc.getTransactionByHash(announceTxHash)
-        if (tx?.blockHeight) {
-          await db.posts.update([author, post_id], { status: 'complete', block_height: tx.blockHeight })
-          clearInterval(interval)
-        }
-      } catch {}
-      if (++attempts >= MAX_ATTEMPTS) clearInterval(interval)
-    }, 5000)
+  async function _submitInline(text, isReply, replyToAuthor, replyToPostId) {
+    const postIdBytes = generatePostId()
+    const replyOpts   = isReply ? {
+      replyAuthor: nqToAddressBytes(replyToAuthor),
+      replyPostId: hexToPostIdBytes(replyToPostId),
+    } : null
+    const payload = buildPostInline(postIdBytes, text, replyOpts)
+
+    const signed = await hub.signTransaction({
+      sender: auth.address, recipient: POST_CATALOG_ADDRESS,
+      value: TX_VALUE_LUNA, fee: 0, extraData: payload,
+    })
+
+    const postIdHex = postIdToHex(postIdBytes)
+    await putPost({
+      author: auth.address, post_id: postIdHex, block_height: 0, tx_index: 0,
+      content: text, total_chunks: null, chunks_received: 0, compressed: false,
+      content_hash: null, is_inline: true, is_reply: isReply,
+      reply_to_author: replyToAuthor, reply_to_post_id: replyToPostId,
+      status: 'inline', first_seen_at: 0,
+    })
+
+    await rpc.sendRawTransaction(signed.serializedTx)
   }
 
-  return { submit, submitting, error }
+  async function _submitChunked(text, raw, isReply, replyToAuthor, replyToPostId) {
+    const comp    = await deflateRaw(raw)
+    const payload = shouldCompress(raw, comp) ? comp : raw
+    const compressed = payload === comp
+
+    const digest      = await crypto.subtle.digest('SHA-256', payload)
+    const contentHash = new Uint8Array(digest).slice(0, 8)
+    const chunks      = splitInto50ByteChunks(payload)
+
+    const postIdBytes   = generatePostId()
+    const postIdHex     = postIdToHex(postIdBytes)
+    const authorBytes   = nqToAddressBytes(auth.address)
+    const derivedBytes  = await derivePostAddress(authorBytes, postIdBytes)
+    const derivedNq     = addressBytesToNq(derivedBytes)
+
+    const replyOpts = isReply ? {
+      replyAuthor: nqToAddressBytes(replyToAuthor),
+      replyPostId: hexToPostIdBytes(replyToPostId),
+    } : null
+
+    const hashHex = Array.from(contentHash).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    const startPayload = buildPostStart(postIdBytes, chunks.length, compressed, contentHash, replyOpts)
+    const startSigned  = await hub.signTransaction({
+      sender: auth.address, recipient: POST_CATALOG_ADDRESS,
+      value: TX_VALUE_LUNA, fee: 0, extraData: startPayload,
+    })
+
+    const chunkSigneds = []
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkPayload = buildPostChunk(postIdBytes, i, chunks[i])
+      const signed = await hub.signTransaction({
+        sender: auth.address, recipient: derivedNq,
+        value: TX_VALUE_LUNA, fee: 0, extraData: chunkPayload,
+      })
+      chunkSigneds.push(signed)
+    }
+
+    await putPost({
+      author: auth.address, post_id: postIdHex, block_height: 0, tx_index: 0,
+      content: text, total_chunks: chunks.length, chunks_received: 0,
+      compressed, content_hash: hashHex, is_inline: false, is_reply: isReply,
+      reply_to_author: replyToAuthor, reply_to_post_id: replyToPostId,
+      status: 'pending', first_seen_at: 0,
+    })
+
+    await rpc.sendRawTransaction(startSigned.serializedTx)
+    for (const s of chunkSigneds) {
+      await rpc.sendRawTransaction(s.serializedTx)
+    }
+  }
+
+  return { sending, error, submitPost, claimProfile, txCount }
+}
+
+function hexToPostIdBytes(hex16) {
+  const reversed = []
+  for (let i = 0; i < 16; i += 2) reversed.unshift(parseInt(hex16.slice(i, i + 2), 16))
+  return new Uint8Array(reversed)
 }
 ```
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/composables/usePost.js
-git commit -m "feat: usePost composable — encode, sign, broadcast, watch confirmation"
-```
-
----
-
-## Task 14: useFeed + useProfile Composables
-
-**Files:**
-- Create: `src/composables/useFeed.js`
-- Create: `src/composables/useProfile.js`
-
-- [ ] **Step 1: Create src/composables/useFeed.js**
+- [ ] **Step 2: Create src/composables/useFeed.js**
 
 ```javascript
 import { ref, onMounted } from 'vue'
 import { useFeedStore } from '../stores/feed.js'
 import { useIndexer } from '../indexer/useIndexer.js'
-import { getCatalogRefs } from '../db/queries.js'
-import { db } from '../db/schema.js'
-import { FEED_PAGE_SIZE, CATALOG_ADDRESS } from '../protocol/constants.js'
+import { getCatalogRefs, getPost } from '../db/queries.js'
+import { FEED_PAGE_SIZE } from '../protocol/constants.js'
 
 export function useFeed() {
-  const store     = useFeedStore()
-  const { syncCatalog, syncUser } = useIndexer()
-  const cursor    = ref({ block_height: Infinity, tx_index: Infinity })
+  const store   = useFeedStore()
+  const indexer = useIndexer()
+  const cursor  = ref({ block_height: Infinity, tx_index: Infinity })
 
   async function loadPage() {
     store.loading = true
     try {
-      const refs = await getCatalogRefs('POST_ANNOUNCE', {
+      const refs = await getCatalogRefs(['POST_INLINE', 'POST_START'], {
         limit:         FEED_PAGE_SIZE,
         beforeHeight:  cursor.value.block_height,
         beforeTxIndex: cursor.value.tx_index,
       })
 
       const posts = await Promise.all(refs.map(async ref => {
-        const post = await db.posts.get([ref.sender, ref.post_id])
+        if (ref.type === 'POST_INLINE') {
+          const post = await getPost(ref.sender, ref.post_id)
+          return post ?? { author: ref.sender, post_id: ref.post_id, status: 'inline', content: null, _skeleton: true }
+        }
+        const post = await getPost(ref.sender, ref.post_id)
         if (!post) {
-          // Trigger background sync and return a skeleton placeholder
-          syncUser(ref.sender, { latestPageOnly: true }).catch(() => {})
+          indexer?.syncDerivedAddress && triggerDerivedSync(ref, indexer)
           return { author: ref.sender, post_id: ref.post_id, status: 'pending', block_height: ref.block_height, content: null, _skeleton: true }
         }
         return post
@@ -2201,7 +2044,7 @@ export function useFeed() {
   async function refresh() {
     store.clear()
     cursor.value = { block_height: Infinity, tx_index: Infinity }
-    await syncCatalog()
+    await indexer?.startDeltaSync()
     await loadPage()
   }
 
@@ -2209,653 +2052,108 @@ export function useFeed() {
 
   return { posts: store.posts, loading: store.loading, hasMore: store.hasMore, loadPage, refresh }
 }
+
+async function triggerDerivedSync(ref, indexer) {
+  const { nqToAddressBytes, addressBytesToNq, derivePostAddress } = await import('../protocol/address.js')
+  const authorBytes  = nqToAddressBytes(ref.sender)
+  const postIdBytes  = hexToPostIdBytes(ref.post_id)
+  const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
+  const derivedNq    = addressBytesToNq(derivedBytes)
+  indexer.syncDerivedAddress(derivedNq).catch(() => {})
+}
+
+function hexToPostIdBytes(hex16) {
+  const reversed = []
+  for (let i = 0; i < 16; i += 2) reversed.unshift(parseInt(hex16.slice(i, i + 2), 16))
+  return new Uint8Array(reversed)
+}
 ```
 
-- [ ] **Step 2: Create src/composables/useProfile.js**
+- [ ] **Step 3: Create src/composables/useProfile.js**
 
 ```javascript
-import { ref, watch } from 'vue'
-import { db } from '../db/schema.js'
-import { getUser, getPostsByAuthor } from '../db/queries.js'
-import { useIndexer } from '../indexer/useIndexer.js'
-import { USER_SYNC_STALE_THRESHOLD_MS, FEED_PAGE_SIZE } from '../protocol/constants.js'
-import { getSyncState } from '../db/queries.js'
+import { ref } from 'vue'
+import { getUser, getCatalogRefsBySender, getPost } from '../db/queries.js'
 
 export function useProfile(address) {
-  const { syncUser } = useIndexer()
-  const user  = ref(null)
-  const posts = ref([])
+  const user    = ref(null)
+  const posts   = ref([])
   const loading = ref(false)
 
-  async function load(addr) {
+  async function load() {
+    const addr = typeof address === 'object' ? address.value : address
     if (!addr) return
     loading.value = true
     try {
-      // Check if sync is stale
-      const state = await getSyncState(addr)
-      const stale = !state || Date.now() - state.last_synced_at > USER_SYNC_STALE_THRESHOLD_MS
-      if (stale) await syncUser(addr)
-
-      user.value  = await getUser(addr)
-      const all   = await getPostsByAuthor(addr)
-      posts.value = all.sort((a, b) => b.block_height - a.block_height || b.tx_index - a.tx_index)
+      user.value = await getUser(addr)
+      const refs = await getCatalogRefsBySender(addr, ['POST_INLINE', 'POST_START'])
+      const resolved = await Promise.all(refs.map(r => getPost(addr, r.post_id)))
+      posts.value = resolved
+        .filter(p => p && (p.status === 'complete' || p.status === 'inline'))
+        .sort((a, b) => b.block_height - a.block_height || b.tx_index - a.tx_index)
     } finally {
       loading.value = false
     }
   }
 
-  async function updateProfile({ displayName, bio }) {
-    // Just triggers Hub signing — actual update happens via indexer after confirmation
-    const { useHub } = await import('../chain/hub.js')
-    const { buildProfileSet } = await import('../protocol/encoder.js')
-    const hub = useHub()
-    const { rpc } = await import('../chain/rpc.js')
-    const { useAuthStore } = await import('../stores/auth.js')
-    const auth = useAuthStore()
-
-    const data   = buildProfileSet({ displayName, bio })
-    const height = await rpc.getBlockNumber()
-    const signed = await hub.signTransaction({
-      sender: auth.address, recipient: auth.address,
-      value: 1, fee: 0, extraData: data, validityStartHeight: '+0',
-    })
-    await rpc.sendRawTransaction(signed.serializedTx)
-  }
-
-  if (typeof address === 'object' && address?.value !== undefined) {
-    watch(address, addr => load(addr), { immediate: true })
-  } else {
-    load(address)
-  }
-
-  return { user, posts, loading, updateProfile }
+  return { user, posts, loading, load }
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/composables/useFeed.js src/composables/useProfile.js
-git commit -m "feat: useFeed and useProfile composables"
+git add src/composables/
+git commit -m "feat: usePost, useFeed, useProfile composables"
 ```
 
 ---
 
-## Task 15: UI Components
+## Task 11: UI Components
 
-**Files:**
-- Create: `src/components/auth/WalletButton.vue`
-- Create: `src/components/auth/LoginModal.vue`
-- Create: `src/components/feed/PostSkeleton.vue`
-- Create: `src/components/feed/PostCard.vue`
-- Create: `src/components/feed/FeedView.vue`
-- Create: `src/components/post/PostComposer.vue`
-- Create: `src/components/profile/ProfileCard.vue`
-- Create: `src/components/profile/ProfileView.vue`
-- Create: `src/components/layout/BottomNav.vue`
-- Create: `src/components/layout/AppShell.vue`
+Implement the minimal UI to verify the full flow works. Refer to spec §7.2 for component contracts.
 
-- [ ] **Step 1: Create src/components/auth/WalletButton.vue**
+- [ ] **Step 1: Create layout components**
 
-```vue
-<script setup>
-import { useAuthStore } from '../../stores/auth.js'
-import { useUiStore } from '../../stores/ui.js'
-const auth = useAuthStore()
-const ui   = useUiStore()
-</script>
+`src/components/layout/AppShell.vue` — RouterView + BottomNav, wraps everything.  
+`src/components/layout/BottomNav.vue` — Home / compose button / profile tabs.
 
-<template>
-  <button v-if="!auth.isLoggedIn"
-    @click="ui.loginModalOpen = true"
-    class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700">
-    Connect Wallet
-  </button>
-  <button v-else
-    @click="auth.clearUser()"
-    class="px-4 py-2 border border-gray-300 rounded-full text-sm hover:bg-gray-50">
-    {{ auth.username ? '@' + auth.username : auth.address?.slice(0, 12) + '…' }}
-  </button>
-</template>
-```
+- [ ] **Step 2: Create auth components**
 
-- [ ] **Step 2: Create src/components/auth/LoginModal.vue**
+`src/components/auth/WalletButton.vue` — shows address or "Connect" button.  
+`src/components/auth/LoginModal.vue` — calls `hub.getAddress()`, sets auth store.
 
-```vue
-<script setup>
-import { ref } from 'vue'
-import { useAuthStore } from '../../stores/auth.js'
-import { useUiStore } from '../../stores/ui.js'
-import { useHub } from '../../chain/hub.js'
-import { indexer } from '../../indexer/IndexerService.js'
-import { db } from '../../db/schema.js'
-import OnboardingFlow from './OnboardingFlow.vue'
+- [ ] **Step 3: Create feed components**
 
-const auth  = useAuthStore()
-const ui    = useUiStore()
-const hub   = useHub()
-const error = ref(null)
-const step  = ref('idle')   // idle | connecting | onboarding
+`src/components/feed/PostSkeleton.vue` — animated gray placeholder card.  
+`src/components/feed/PostCard.vue` — renders post content, author, timestamp. Shows "tentative" badge if `block_height === 0` (optimistic write).  
+`src/components/feed/FeedView.vue` — uses `useFeed()`, renders PostCards / PostSkeletons with infinite scroll trigger.
 
-async function connect() {
-  error.value = null
-  step.value  = 'connecting'
-  try {
-    // Use Hub chooseAddress or signMessage to get the user's address.
-    // Hub signMessage returns { signer, signature } — signer is the NQ address.
-    const result = await hub.signMessage('Login to NimFeed', auth.address ?? undefined)
-    const address = result.signer
+- [ ] **Step 4: Create post composer**
 
-    auth.setUser({ addr: address, display_name: null, uname: null, reg: false })
+`src/components/post/PostComposer.vue` — textarea (280 char limit), shows tx count from `usePost().txCount(text)`, submit calls `usePost().submitPost(text)`.
 
-    // Check if this address has a USER_REG in catalog
-    const user = await db.users.get(address)
-    if (!user?.registered_height) {
-      step.value = 'onboarding'
-    } else {
-      auth.setUser({ addr: address, display_name: user.display_name, uname: user.username, reg: true })
-      ui.loginModalOpen = false
-      step.value = 'idle'
-    }
-  } catch (err) {
-    error.value = err.message
-    step.value  = 'idle'
-  }
-}
-</script>
+- [ ] **Step 5: Create profile components**
 
-<template>
-  <div v-if="ui.loginModalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl">
-      <h2 class="text-xl font-bold mb-4">Connect to NimFeed</h2>
+`src/components/profile/ProfileCard.vue` — address, username, display name.  
+`src/components/profile/ProfileView.vue` — uses `useProfile(address)`, renders ProfileCard + post list.
 
-      <div v-if="step === 'idle'">
-        <p class="text-gray-500 text-sm mb-6">Sign in with your Nimiq wallet via Hub.</p>
-        <button @click="connect" class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700">
-          Connect with Nimiq Hub
-        </button>
-        <p v-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
-      </div>
+- [ ] **Step 6: Wire App.vue onboarding**
 
-      <div v-else-if="step === 'connecting'" class="text-center py-4 text-gray-500">
-        Waiting for Hub…
-      </div>
+On login: if `auth.hasClaimed === false`, show profile claim modal (username + display name form → `usePost().claimProfile()`).
 
-      <div v-else-if="step === 'onboarding'">
-        <OnboardingFlow @done="ui.loginModalOpen = false; step = 'idle'" />
-      </div>
-
-      <button @click="ui.loginModalOpen = false; step = 'idle'"
-        class="mt-4 w-full py-2 text-gray-400 text-sm hover:text-gray-600">
-        Cancel
-      </button>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 3: Create src/components/auth/OnboardingFlow.vue**
-
-```vue
-<script setup>
-import { ref } from 'vue'
-import { useAuthStore } from '../../stores/auth.js'
-import { useHub } from '../../chain/hub.js'
-import { rpc } from '../../chain/rpc.js'
-import { buildUserReg, buildUsernameClaim, buildProfileSet } from '../../protocol/encoder.js'
-import { CATALOG_ADDRESS } from '../../protocol/constants.js'
-
-const emit       = defineEmits(['done'])
-const auth       = useAuthStore()
-const hub        = useHub()
-const username   = ref('')
-const displayName = ref('')
-const bio        = ref('')
-const step       = ref(1)  // 1=username, 2=profile, 3=registering
-const error      = ref(null)
-
-async function register() {
-  error.value = null
-  step.value  = 3
-  try {
-    const height = await rpc.getBlockNumber()
-
-    // Tx 1: USER_REG → catalog
-    const regSigned = await hub.signTransaction({
-      sender: auth.address, recipient: CATALOG_ADDRESS,
-      value: 1, fee: 0, extraData: buildUserReg(), validityStartHeight: '+0',
-    })
-    await rpc.sendRawTransaction(regSigned.serializedTx)
-
-    // Tx 2 (optional): USERNAME_CLAIM → catalog
-    if (username.value.trim()) {
-      const claimSigned = await hub.signTransaction({
-        sender: auth.address, recipient: CATALOG_ADDRESS,
-        value: 1, fee: 0, extraData: buildUsernameClaim(username.value.trim()), validityStartHeight: '+1',
-      })
-      await rpc.sendRawTransaction(claimSigned.serializedTx)
-    }
-
-    // Tx 3: PROFILE_SET → self
-    const profileSigned = await hub.signTransaction({
-      sender: auth.address, recipient: auth.address,
-      value: 1, fee: 0,
-      extraData: buildProfileSet({ displayName: displayName.value.trim() || null, bio: bio.value.trim() || null }),
-      validityStartHeight: '+2',
-    })
-    await rpc.sendRawTransaction(profileSigned.serializedTx)
-
-    auth.setUser({ addr: auth.address, display_name: displayName.value || null, uname: username.value || null, reg: true })
-    emit('done')
-  } catch (err) {
-    error.value = err.message
-    step.value  = 2
-  }
-}
-</script>
-
-<template>
-  <div>
-    <div v-if="step < 3">
-      <h3 class="font-semibold mb-4">Set up your profile</h3>
-      <input v-model="username" placeholder="username (optional, 3–31 chars)"
-        class="w-full border rounded-lg px-3 py-2 mb-3 text-sm" />
-      <input v-model="displayName" placeholder="Display name (optional)"
-        class="w-full border rounded-lg px-3 py-2 mb-3 text-sm" />
-      <textarea v-model="bio" placeholder="Bio (optional, 31 chars max)" maxlength="31" rows="2"
-        class="w-full border rounded-lg px-3 py-2 mb-4 text-sm resize-none" />
-      <button @click="register" class="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700">
-        Register on NimFeed
-      </button>
-      <p v-if="error" class="mt-2 text-red-500 text-sm">{{ error }}</p>
-      <p class="mt-2 text-gray-400 text-xs">This will send 2–3 transactions (2–3 Luna).</p>
-    </div>
-    <div v-else class="text-center py-4 text-gray-500">
-      Registering on-chain…
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 4: Create src/components/feed/PostSkeleton.vue**
-
-```vue
-<template>
-  <div class="border-b border-gray-100 p-4 animate-pulse">
-    <div class="flex gap-3">
-      <div class="w-10 h-10 bg-gray-200 rounded-full shrink-0"></div>
-      <div class="flex-1 space-y-2">
-        <div class="h-3 bg-gray-200 rounded w-1/3"></div>
-        <div class="h-3 bg-gray-200 rounded w-full"></div>
-        <div class="h-3 bg-gray-200 rounded w-2/3"></div>
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 5: Create src/components/feed/PostCard.vue**
-
-```vue
-<script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { TENTATIVE_BLOCK_CONFIRMATIONS } from '../../protocol/constants.js'
-
-const props  = defineProps({ post: Object, tipHeight: Number })
-const router = useRouter()
-
-const tentative   = computed(() => props.tipHeight && (props.tipHeight - props.post.block_height) < TENTATIVE_BLOCK_CONFIRMATIONS)
-const authorShort = computed(() => props.post.author?.slice(0, 16) + '…')
-const timeLabel   = computed(() => `block ${props.post.block_height}`)
-</script>
-
-<template>
-  <div class="border-b border-gray-100 p-4 hover:bg-gray-50 cursor-pointer"
-    @click="router.push(`/profile/${post.author}`)">
-
-    <div class="flex gap-3">
-      <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shrink-0">
-        {{ post.author?.[2] ?? '?' }}
-      </div>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1">
-          <span class="font-semibold text-sm truncate">{{ authorShort }}</span>
-          <span class="text-gray-400 text-xs">· {{ timeLabel }}</span>
-          <span v-if="tentative" class="text-yellow-500 text-xs" title="Waiting for confirmations">⏳</span>
-        </div>
-        <p v-if="post.status === 'complete'" class="text-gray-900 text-sm whitespace-pre-wrap break-words">
-          {{ post.content }}
-        </p>
-        <p v-else-if="post.status === 'missing_chunks'" class="text-gray-400 text-sm italic">
-          Post unavailable
-        </p>
-        <p v-else class="text-gray-400 text-sm italic">Loading…</p>
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 6: Create src/components/feed/FeedView.vue**
-
-```vue
-<script setup>
-import { ref } from 'vue'
-import { useFeed } from '../../composables/useFeed.js'
-import PostCard from './PostCard.vue'
-import PostSkeleton from './PostSkeleton.vue'
-
-const { posts, loading, hasMore, loadPage, refresh } = useFeed()
-const tipHeight = ref(0)
-</script>
-
-<template>
-  <div>
-    <div class="sticky top-0 bg-white/80 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-      <h1 class="font-bold text-lg">NimFeed</h1>
-      <button @click="refresh" class="text-blue-500 text-sm hover:text-blue-700">Refresh</button>
-    </div>
-
-    <div v-if="loading && !posts.length">
-      <PostSkeleton v-for="i in 5" :key="i" />
-    </div>
-
-    <template v-else>
-      <template v-for="post in posts" :key="post.post_id">
-        <PostSkeleton v-if="post._skeleton" />
-        <PostCard v-else :post="post" :tip-height="tipHeight" />
-      </template>
-
-      <div v-if="hasMore" class="p-4 text-center">
-        <button @click="loadPage" :disabled="loading"
-          class="text-blue-500 text-sm hover:text-blue-700 disabled:opacity-50">
-          {{ loading ? 'Loading…' : 'Load more' }}
-        </button>
-      </div>
-      <div v-else class="p-8 text-center text-gray-400 text-sm">
-        You've reached the beginning.
-      </div>
-    </template>
-  </div>
-</template>
-```
-
-- [ ] **Step 7: Create src/components/post/PostComposer.vue**
-
-```vue
-<script setup>
-import { ref } from 'vue'
-import { usePost } from '../../composables/usePost.js'
-import { useAuthStore } from '../../stores/auth.js'
-import { MAX_POST_CHARS } from '../../protocol/constants.js'
-
-const auth            = useAuthStore()
-const { submit, submitting, error } = usePost()
-const text            = ref('')
-const charCount       = ref(0)
-
-function onInput(e) {
-  text.value      = e.target.value
-  charCount.value = text.value.length
-}
-
-async function post() {
-  if (!text.value.trim() || submitting.value) return
-  await submit(text.value.trim())
-  text.value      = ''
-  charCount.value = 0
-}
-</script>
-
-<template>
-  <div class="border-b border-gray-100 p-4">
-    <div class="flex gap-3">
-      <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shrink-0">
-        {{ auth.address?.[2] ?? '?' }}
-      </div>
-      <div class="flex-1">
-        <textarea
-          :value="text"
-          @input="onInput"
-          :maxlength="MAX_POST_CHARS"
-          placeholder="What's happening on-chain?"
-          rows="3"
-          class="w-full resize-none outline-none text-gray-900 placeholder-gray-400 text-sm"
-        />
-        <div class="flex items-center justify-between mt-2">
-          <span class="text-xs" :class="charCount > MAX_POST_CHARS * 0.9 ? 'text-red-500' : 'text-gray-400'">
-            {{ charCount }}/{{ MAX_POST_CHARS }}
-          </span>
-          <div class="flex items-center gap-2">
-            <span v-if="error" class="text-red-500 text-xs">{{ error }}</span>
-            <button
-              @click="post"
-              :disabled="!text.trim() || submitting"
-              class="px-4 py-1.5 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-              {{ submitting ? 'Posting…' : 'Post' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 8: Create src/components/profile/ProfileCard.vue**
-
-```vue
-<script setup>
-const props = defineProps({ user: Object, address: String })
-</script>
-
-<template>
-  <div class="p-6 border-b border-gray-100">
-    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl font-bold mb-3">
-      {{ address?.[2] ?? '?' }}
-    </div>
-    <div class="font-bold text-lg">{{ user?.display_name ?? 'Anonymous' }}</div>
-    <div v-if="user?.username" class="text-gray-500 text-sm">@{{ user.username }}</div>
-    <div class="text-gray-400 text-xs mt-1 font-mono">{{ address }}</div>
-    <p v-if="user?.bio" class="mt-3 text-gray-700 text-sm">{{ user.bio }}</p>
-  </div>
-</template>
-```
-
-- [ ] **Step 9: Create src/components/profile/ProfileView.vue**
-
-```vue
-<script setup>
-import { useRoute } from 'vue-router'
-import { useProfile } from '../../composables/useProfile.js'
-import ProfileCard from './ProfileCard.vue'
-import PostCard from '../feed/PostCard.vue'
-import PostSkeleton from '../feed/PostSkeleton.vue'
-
-const route              = useRoute()
-const address            = route.params.address
-const { user, posts, loading } = useProfile(address)
-</script>
-
-<template>
-  <div>
-    <div v-if="loading && !user">
-      <div class="p-6 animate-pulse space-y-3">
-        <div class="w-16 h-16 bg-gray-200 rounded-full"></div>
-        <div class="h-4 bg-gray-200 rounded w-1/3"></div>
-      </div>
-    </div>
-    <ProfileCard v-else :user="user" :address="address" />
-
-    <PostSkeleton v-if="loading && !posts.length" v-for="i in 3" :key="i" />
-    <PostCard v-for="post in posts" :key="post.post_id" :post="post" :tip-height="0" />
-
-    <div v-if="!loading && !posts.length" class="p-8 text-center text-gray-400 text-sm">
-      No posts yet.
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 10: Create src/components/layout/BottomNav.vue**
-
-```vue
-<script setup>
-import { useRouter, useRoute } from 'vue-router'
-import { useUiStore } from '../../stores/ui.js'
-import { useAuthStore } from '../../stores/auth.js'
-
-const router = useRouter()
-const route  = useRoute()
-const ui     = useUiStore()
-const auth   = useAuthStore()
-</script>
-
-<template>
-  <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-100 flex justify-around py-3 z-40">
-    <button @click="router.push('/')" :class="route.path === '/' ? 'text-blue-600' : 'text-gray-400'">
-      <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M3 12l9-9 9 9v9H15v-6H9v6H3z"/></svg>
-    </button>
-    <button @click="auth.isLoggedIn ? (ui.composerOpen = true) : (ui.loginModalOpen = true)"
-      class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white -mt-4 shadow-lg hover:bg-blue-700">
-      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
-    <button @click="auth.isLoggedIn ? router.push(`/profile/${auth.address}`) : (ui.loginModalOpen = true)"
-      :class="route.path.startsWith('/profile') ? 'text-blue-600' : 'text-gray-400'">
-      <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
-    </button>
-  </nav>
-</template>
-```
-
-- [ ] **Step 11: Create src/components/layout/AppShell.vue**
-
-```vue
-<script setup>
-import { onMounted } from 'vue'
-import BottomNav from './BottomNav.vue'
-import LoginModal from '../auth/LoginModal.vue'
-import PostComposer from '../post/PostComposer.vue'
-import { useUiStore } from '../../stores/ui.js'
-import { useHub } from '../../chain/hub.js'
-import { indexer } from '../../indexer/IndexerService.js'
-
-const ui  = useUiStore()
-const hub = useHub()
-
-onMounted(() => {
-  hub.warmup()
-  indexer.syncCatalog()
-  indexer.startDeltaSync()
-})
-</script>
-
-<template>
-  <div class="min-h-screen bg-white max-w-xl mx-auto">
-    <main class="pb-20">
-      <router-view />
-    </main>
-    <BottomNav />
-    <LoginModal />
-
-    <!-- Composer overlay -->
-    <div v-if="ui.composerOpen" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-      <div class="bg-white w-full max-w-xl rounded-t-2xl sm:rounded-2xl">
-        <div class="flex justify-end p-3">
-          <button @click="ui.composerOpen = false" class="text-gray-400 hover:text-gray-600">✕</button>
-        </div>
-        <PostComposer />
-      </div>
-    </div>
-  </div>
-</template>
-```
-
-- [ ] **Step 12: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/components/ src/composables/
-git commit -m "feat: UI components — auth, feed, composer, profile, app shell"
+git add src/components/
+git commit -m "feat: UI components — feed, composer, profile, auth"
 ```
 
 ---
 
-## Task 16: Final Wiring + Testnet Smoke Test
+## Task 12: Run All Tests + Testnet Smoke Test
 
-**Files:**
-- Modify: `src/protocol/constants.js` — set testnet catalog address
-- Verify: all modules connect end-to-end on testnet
-
-- [ ] **Step 1: Create a testnet catalog wallet**
-
-Using the Nimiq testnet faucet and wallet, create a dedicated NimFeed catalog address. This wallet's private key should be kept safe — it is the root of the NimFeed protocol on testnet.
-
-Go to `https://wallet.nimiq-testnet.com` → create new wallet → copy the NQ address.
-
-- [ ] **Step 2: Update CATALOG_ADDRESS in constants.js**
-
-```javascript
-// src/protocol/constants.js — replace the placeholder:
-export const CATALOG_ADDRESS = 'NQ__YOUR_TESTNET_CATALOG_ADDRESS_HERE'
-```
-
-- [ ] **Step 3: Start dev server**
-
-```bash
-npm run dev
-```
-
-Expected: `http://localhost:5173` opens without console errors.
-
-- [ ] **Step 4: Smoke test — read-only feed**
-
-1. Open `http://localhost:5173`
-2. Open DevTools → Network tab
-3. Observe RPC call to `getTransactionsByAddress` for the catalog address
-4. Expected: call succeeds (even if catalog is empty)
-5. Global feed renders (empty state: "You've reached the beginning")
-
-- [ ] **Step 5: Smoke test — Hub login**
-
-1. Click "Connect Wallet"
-2. Hub popup opens
-3. Sign the message
-4. Address appears in WalletButton
-5. Expected: no console errors
-
-- [ ] **Step 6: Smoke test — onboarding**
-
-1. After Hub login, onboarding flow appears (first-time user)
-2. Enter username + display name
-3. Click Register — Hub popups appear (2–3 txs)
-4. Sign each popup
-5. Expected: transactions broadcast, no errors
-
-- [ ] **Step 7: Smoke test — post creation**
-
-1. Click the + button → composer opens
-2. Type a short post (< 100 chars)
-3. Click Post → Hub popups appear
-4. Sign each (POST_START + POST_CHUNK(s) + POST_ANNOUNCE)
-5. Expected: post appears in profile feed with `status: 'pending'`
-6. After ~30s: post status changes to `complete`
-
-- [ ] **Step 8: Smoke test — global feed**
-
-1. After post is confirmed, reload the app
-2. Global feed: wait for catalog sync
-3. Expected: post appears in global feed
-
-- [ ] **Step 9: Verify IndexedDB contents**
-
-In DevTools → Application → IndexedDB → nimfeed-v1:
-- `users`: your address with `registered_height`
-- `posts`: your post with `status: 'complete'` and `content` set
-- `catalog_refs`: POST_ANNOUNCE entry for your post
-- `sync_state`: catalog entry with `newest_seen_tx_hash` set
-
-- [ ] **Step 10: Run all tests one final time**
+- [ ] **Step 1: Run full test suite**
 
 ```bash
 npm test
@@ -2863,18 +2161,53 @@ npm test
 
 Expected: All pass.
 
-- [ ] **Step 11: Final commit**
+- [ ] **Step 2: Start dev server**
 
 ```bash
-git add src/protocol/constants.js
-git commit -m "feat: set testnet catalog address — Phase 1 MVP complete"
+npm run dev
+```
+
+- [ ] **Step 3: Smoke test — onboarding**
+
+1. Open app, click Connect — Hub popup
+2. Sign in with testnet wallet
+3. Onboarding modal appears (username + display name)
+4. Submit → 1 Hub popup (PROFILE_CLAIM → POST_CATALOG)
+5. After confirmation: auth store shows username/display name
+
+- [ ] **Step 4: Smoke test — post inline**
+
+1. Open composer, type ≤51 chars of text
+2. UI shows "1 transaction (1 Luna)"
+3. Submit → 1 Hub popup (POST_INLINE → POST_CATALOG)
+4. Post appears in profile feed immediately (optimistic write)
+5. Post appears in global feed after catalog delta sync
+
+- [ ] **Step 5: Smoke test — post chunked**
+
+1. Open composer, type 160 chars
+2. UI shows "4 transactions (4 Luna)"
+3. Submit → 4 Hub popups sequentially
+4. Post appears in profile feed as skeleton → then content assembles
+5. DevTools → IndexedDB → nimfeed-v1 → posts: status changes pending → complete
+
+- [ ] **Step 6: Smoke test — global feed without login**
+
+1. Open app without signing in
+2. Global feed loads posts from catalog
+3. Read-only works
+
+- [ ] **Step 7: Final commit**
+
+```bash
+git add .
+git commit -m "feat: Phase 1 complete — profile claim, post inline/chunked, global feed, profile view"
 ```
 
 ---
 
 ## Phase 1 Complete
 
-All 8 event types encoded and decoded. IndexedDB schema with 8 stores. Dual-cursor indexer. Hub login + onboarding. Post creation with compression. Global feed. Profile view.
+Profile claim: 1 tx. Inline post: 1 tx. Chunked post: N+1 txs. Global feed from post catalog. Profile feed from catalog filtered by sender. No self-transactions. No per-user address sync.
 
-**Phase 2 plan** (follows + following feed + username search): `docs/superpowers/plans/2026-05-05-nimfeed-phase2.md`  
-**Phase 3 plan** (likes + replies + threads): `docs/superpowers/plans/2026-05-05-nimfeed-phase3.md`
+**Phase 2 plan** (follow graph, following feed, username search): `docs/superpowers/plans/2026-05-05-nimfeed-phase2.md`

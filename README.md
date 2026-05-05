@@ -1,2 +1,146 @@
 # NimFeed
-On Chain Twitter clone
+
+NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile claims and posts on-chain, then builds local timelines by indexing chain data in the browser.
+
+## What it does
+
+- Connects a wallet through **Nimiq Hub**.
+- Claims usernames (`PROFILE_CLAIM`) with earliest-claim-wins resolution.
+- Publishes posts as:
+  - `POST_INLINE` for short text
+  - `POST_START` + `POST_CHUNK` for larger payloads
+- Supports follow/unfollow events and a following timeline.
+- Shows thread/reply context.
+- Links each post to explorer block/transaction pages.
+
+## Tech stack
+
+- Vue 3 + Vue Router + Pinia
+- Dexie (IndexedDB)
+- `@nimiq/hub-api` (wallet signing)
+- Vite + Tailwind CSS
+- Vitest + happy-dom + fake-indexeddb
+
+## Quick start
+
+### 1) Prerequisites
+
+- Node.js 20+ (recommended)
+- npm
+
+### 2) Install
+
+```bash
+npm install
+```
+
+### 3) Configure environment
+
+Create/update `.env.local`:
+
+```env
+VITE_NIMFEED_NETWORK=mainnet
+VITE_NIMFEED_MAINNET_CATALOG_ADDRESS=NQ19 LLHP G0ML 37RM 5JJD RME1 GLFY 75PQ 402Y
+VITE_NIMFEED_MAINNET_BOOTSTRAP_ADDRESS=NQ79 FEX6 3EN3 ALNX 9U6Y U7UB 4RHS 13SC 7Y1E
+VITE_NIMFEED_DATA_RECIPIENT_ADDRESS=NQ79 FEX6 3EN3 ALNX 9U6Y U7UB 4RHS 13SC 7Y1E
+```
+
+Then run:
+
+```bash
+npm run dev
+```
+
+## Available scripts
+
+- `npm run dev` - start Vite dev server
+- `npm run build` - production build (also copies `dist/index.html` to `dist/404.html`)
+- `npm test` - run test suite once
+- `npm run test:watch` - watch mode tests
+- `npm run admin:bootstrap` - wallet/bootstrap CLI entrypoint
+
+## Configuration reference
+
+Environment variables consumed by the app:
+
+- `VITE_NIMFEED_NETWORK` - `mainnet` or `testnet`
+- `VITE_NIMFEED_MAINNET_CATALOG_ADDRESS`
+- `VITE_NIMFEED_TESTNET_CATALOG_ADDRESS`
+- `VITE_NIMFEED_MAINNET_FOLLOW_CATALOG_ADDRESS`
+- `VITE_NIMFEED_TESTNET_FOLLOW_CATALOG_ADDRESS`
+- `VITE_NIMFEED_MAINNET_BOOTSTRAP_ADDRESS`
+- `VITE_NIMFEED_TESTNET_BOOTSTRAP_ADDRESS`
+- `VITE_NIMFEED_DATA_RECIPIENT_ADDRESS`
+- `VITE_NIMFEED_HUB_URL` (optional override)
+- `VITE_NIMFEED_MAINNET_EXPLORER_BASE_URL` (default `https://nimiqscan.com`)
+- `VITE_NIMFEED_TESTNET_EXPLORER_BASE_URL` (default `https://test.nimiq.watch`)
+
+## High-level architecture
+
+1. User signs transactions in Hub popup (private keys never sent to RPC).
+2. App sends signed tx hex to RPC (`sendRawTransaction`).
+3. Browser indexer syncs catalog/follow addresses from RPC.
+4. Decoder/handlers persist events to IndexedDB (`catalog_refs`, `posts`, `users`, `follows`, etc.).
+5. Feed/profile composables render timelines from local DB.
+
+Core folders:
+
+- `src/protocol` - binary format, encoders/decoders, address utilities
+- `src/indexer` - chain sync, event handling, chunk assembly
+- `src/db` - Dexie schema + queries
+- `src/components` - UI
+- `src/composables` - feed, post, profile, follow flows
+
+## Username claim semantics
+
+- Username winner is the **earliest** claim by `(block_height, tx_index)`.
+- UI claim flow now checks conflicts:
+  - pre-submit: blocks already-taken handles
+  - post-submit: verifies you actually became winner after sync
+
+## Debugging
+
+### Profile diagnostics panel
+
+On Profile page, tap the subtle `···` in the header to open **Diagnostics**:
+
+- network/rpc/explorer/catalog addresses
+- local DB counts
+- `sync_state` rows for indexer scopes
+- refresh diagnostics button
+- `logs: on/off` toggle for `[NimFeed debug]` console logs
+
+### Console debug logs
+
+In dev mode, feed/indexer logs are gated by `localStorage` key:
+
+- key: `nimfeed_debug_logs`
+- values: `1` (on) / `0` (off)
+
+Use the diagnostics toggle instead of setting this manually.
+
+## Local node (optional)
+
+A Docker Compose config is included to run a local Nimiq node (`docker-compose.yml`), exposing RPC at `http://localhost:8648`.
+
+## Tests
+
+Run:
+
+```bash
+npm test
+```
+
+Test environment:
+
+- `happy-dom`
+- `fake-indexeddb`
+
+## Related docs
+
+- `docs/superpowers/specs/2026-05-05-nimfeed-design.md`
+- `docs/superpowers/plans/2026-05-05-nimfeed-phase1.md`
+- `docs/superpowers/plans/2026-05-05-nimfeed-phase2.md`
+- `docs/superpowers/plans/2026-05-05-nimfeed-phase3.md`
+- `docs/operations/2026-05-05-admin-bootstrap-cli.md`
+- `docs/operations/2026-05-05-wallet-operations.md`

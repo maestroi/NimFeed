@@ -1,0 +1,31 @@
+{
+  "name": "nimfeed",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp dist/index.html dist/404.html",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "admin:bootstrap": "node scripts/admin-bootstrap.mjs"
+  },
+  "dependencies": {
+    "@nimiq/hub-api": "^1.13.0",
+    "@nimiq/identicons": "^1.6.2",
+    "dexie": "^4.0.0",
+    "pinia": "^3.0.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vitest/ui": "^4.1.5",
+    "fake-indexeddb": "^6.0.0",
+    "happy-dom": "^20.9.0",
+    "tailwindcss": "^4.0.0",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5"
+  }
+}

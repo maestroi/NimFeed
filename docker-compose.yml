@@ -1,0 +1,58 @@
+# Local Nimiq Albatross node (test-albatross, testnet seeds).
+# RPC on host: http://localhost:8648
+# Point NimFeed at it from startup (e.g. rpc.setEndpoint in AppShell) instead of the public testnet URL if you want the indexer and RPC calls to hit this client.
+#
+# Adapted from nimiq-2048/docker-compose.yml (nimiq-node service only).
+
+services:
+  nimiq-node:
+    image: ghcr.io/nimiq/core-rs-albatross:1.3.0
+    # Named volumes are root-owned by default; nimiq runs as 1001.
+    user: '0:0'
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        chown -R nimiq:nimiq /home/nimiq/.nimiq || true
+        exec runuser -u nimiq -- /usr/bin/tini -- nimiq-client
+    restart: unless-stopped
+    ports:
+      - '8443:8443'
+      - '8648:8648'
+    environment:
+      - RPC_ENABLED=true
+      - NIMIQ_INSTANT_INBOUND=true
+      - NIMIQ_NETWORK=test-albatross
+    volumes:
+      - nimiq_node_data:/home/nimiq/.nimiq
+      - type: bind
+        source: ./nimiq/client.toml
+        target: /home/nimiq/.nimiq/client.toml
+        read_only: false
+    networks:
+      - nimfeed-chain
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'curl',
+          '-sf',
+          '-X',
+          'POST',
+          '-H',
+          'Content-Type: application/json',
+          '-d',
+          '{"jsonrpc":"2.0","method":"isConsensusEstablished","params":[],"id":1}',
+          'http://localhost:8648',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 120s
+
+networks:
+  nimfeed-chain:
+    driver: bridge
+
+volumes:
+  nimiq_node_data:
+    driver: local
