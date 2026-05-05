@@ -23,6 +23,7 @@ const threadTo = computed(() => ({
 }))
 
 const authorShort = computed(() => props.post.author?.slice(0, 16) + '…')
+const authorLabel = ref(null)
 const timeLabel = computed(() => `block ${props.post.block_height ?? '…'}`)
 const blockUrl = computed(() => {
   const h = props.post.block_height
@@ -35,6 +36,17 @@ const txUrl = computed(() => {
 })
 
 const resolvedReplyUsername = ref(null)
+
+watch(
+  () => props.post.author,
+  async (author) => {
+    authorLabel.value = null
+    if (!author) return
+    const u = await getUser(author)
+    authorLabel.value = u?.username ? '@' + u.username : null
+  },
+  { immediate: true },
+)
 
 watch(
   () => [props.post.is_reply, props.post.reply_to_author],
@@ -114,7 +126,7 @@ const cardClass = computed(() => [
                 class="truncate text-sm font-semibold text-[var(--nf-text)] hover:underline"
                 @click.stop
               >
-                {{ authorShort }}
+                {{ authorLabel || authorShort }}
               </RouterLink>
               <a
                 v-if="blockUrl"
@@ -166,7 +178,7 @@ const cardClass = computed(() => [
               class="truncate text-sm font-semibold text-[var(--nf-text)] hover:underline"
               @click.stop
             >
-              {{ authorShort }}
+              {{ authorLabel || authorShort }}
             </RouterLink>
             <a
               v-if="blockUrl"

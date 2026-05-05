@@ -12,6 +12,8 @@ const ui = useUiStore()
 const auth = useAuthStore()
 const { indexer } = useIndexer()
 const tipHeight = ref(0)
+const telegramBotUrl = 'https://t.me/nimiq_notifier_bot'
+const aceStakingUrl = 'https://acestaking.com/'
 
 const globalFeed = useFeed('global')
 const followingFeed = useFeed('following')
@@ -88,6 +90,35 @@ function onCatalogUpdated() {
           >
             Refresh
           </button>
+        </div>
+
+        <div class="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
+          <a
+            :href="telegramBotUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="nf-focus inline-flex items-center gap-1.5 rounded-full border border-[var(--nf-border)] bg-[var(--nf-soft)] px-3 py-1 text-[11px] font-semibold text-[var(--nf-primary)] hover:bg-white"
+          >
+            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current" aria-hidden="true">
+              <path
+                d="M20.7 3.3a1.5 1.5 0 0 0-1.5-.2L3 9.6a1.5 1.5 0 0 0 .1 2.8l4.3 1.4 1.5 5a1.5 1.5 0 0 0 2.6.6l2.6-3 4.1 3a1.5 1.5 0 0 0 2.4-.9l2-13.6a1.5 1.5 0 0 0-.8-1.6zm-3.3 4.1-7 6.2a1 1 0 0 0-.3.9l-.3 1.8-1-3.2 8-6.6a.5.5 0 1 1 .6.8z"
+              />
+            </svg>
+            Notify Bot
+          </a>
+          <a
+            :href="aceStakingUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="nf-focus inline-flex items-center gap-1.5 rounded-full border border-[#f2cf7c] bg-[#fff8e7] px-3 py-1 text-[11px] font-semibold text-[#9a6a00] hover:bg-[#fff3d0]"
+          >
+            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current" aria-hidden="true">
+              <path
+                d="M12 2a8 8 0 0 0-8 8c0 4.2 3 7.7 7 8.7V22h2v-3.3c4-1 7-4.5 7-8.7a8 8 0 0 0-8-8zm-1 12.9L7.6 11.5l1.4-1.4L11 12l4-4 1.4 1.4-5.4 5.5z"
+              />
+            </svg>
+            Stake with AceStaking
+          </a>
         </div>
       </div>
     </header>

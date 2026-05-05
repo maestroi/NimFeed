@@ -2,6 +2,8 @@
 
 NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile claims and posts on-chain, then builds local timelines by indexing chain data in the browser.
 
+Live app: `https://maestroi.github.io/NimFeed/`
+
 ## What it does
 
 - Connects a wallet through **Nimiq Hub**.
