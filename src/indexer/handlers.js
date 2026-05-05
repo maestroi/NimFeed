@@ -6,6 +6,9 @@ import {
   getWinningClaim,
   getLatestClaimByAddress,
   putUser,
+  getUser,
+  updateUser,
+  getUsersByUsername,
   getPost,
   putPost,
   updatePost,
@@ -82,15 +85,38 @@ async function handleProfileClaim(ev) {
   })
 
   const winning = await getWinningClaim(username)
-  if (winning?.address === ev.from) {
-    const latest = await getLatestClaimByAddress(ev.from, username)
+  if (!winning?.address) return
+
+  // Keep winner row canonical even if claims are discovered out-of-order.
+  const winnerAddress = winning.address
+  const latestWinnerClaim = await getLatestClaimByAddress(winnerAddress, username)
+  const existingWinner = await getUser(winnerAddress)
+  const winnerPatch = {
+    display_name: latestWinnerClaim?.display_name ?? existingWinner?.display_name ?? null,
+    username,
+    username_height: winning.block_height,
+    username_tx_index: winning.tx_index,
+    last_synced_height: Math.max(existingWinner?.last_synced_height ?? 0, ev.blockHeight ?? 0),
+  }
+
+  if (existingWinner) {
+    await updateUser(winnerAddress, winnerPatch)
+  } else {
     await putUser({
-      address: ev.from,
-      display_name: latest?.display_name ?? null,
-      username,
-      username_height: winning.block_height,
-      username_tx_index: winning.tx_index,
-      last_synced_height: ev.blockHeight,
+      address: winnerAddress,
+      ...winnerPatch,
+    })
+  }
+
+  // Clear stale username ownership from prior tentative winners.
+  const holders = await getUsersByUsername(username)
+  for (const holder of holders) {
+    if (holder.address === winnerAddress) continue
+    await updateUser(holder.address, {
+      username: null,
+      username_height: null,
+      username_tx_index: null,
+      last_synced_height: Math.max(holder.last_synced_height ?? 0, ev.blockHeight ?? 0),
     })
   }
 }

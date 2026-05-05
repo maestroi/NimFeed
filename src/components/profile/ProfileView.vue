@@ -1,10 +1,19 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProfile } from '../../composables/useProfile.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { db } from '../../db/schema.js'
 import { rpc } from '../../chain/rpc.js'
+import {
+  getDefaultRpcEndpoint,
+  getRpcEndpointPreference,
+  setRpcEndpointPreference,
+  clearRpcEndpointPreference,
+  isValidRpcEndpoint,
+  normalizeRpcEndpoint,
+} from '../../chain/rpcSettings.js'
+import { useIndexer } from '../../indexer/useIndexer.js'
 import { POST_CATALOG_ADDRESS, FOLLOW_CATALOG_ADDRESS, EXPLORER_BASE_URL } from '../../protocol/constants.js'
 import { isDebugLogsEnabled, setDebugLogsEnabled } from '../../debug/logging.js'
 import ProfileCard from './ProfileCard.vue'
@@ -15,11 +24,22 @@ const auth = useAuthStore()
 const route = useRoute()
 const address = route.params.address
 const { user, posts, loading } = useProfile(address)
+const { startDeltaSync } = useIndexer()
 
 const showDebug = ref(false)
+const showRpcSettings = ref(false)
+const menuOpen = ref(false)
 const debugLoading = ref(false)
 const debugData = ref(null)
 const debugLogsEnabled = ref(isDebugLogsEnabled())
+const defaultRpcEndpoint = getDefaultRpcEndpoint()
+const customRpcEndpoint = ref(getRpcEndpointPreference())
+const rpcInput = ref(customRpcEndpoint.value ?? rpc.url ?? defaultRpcEndpoint)
+const rpcSaving = ref(false)
+const rpcError = ref('')
+const rpcNotice = ref('')
+const isSelf = computed(() => auth.address === address)
+const menuRef = ref(null)
 
 function formatTs(ts) {
   if (!ts) return null
@@ -71,10 +91,79 @@ async function toggleDebug() {
   if (showDebug.value) await loadDebug()
 }
 
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+async function toggleDebugFromMenu() {
+  menuOpen.value = false
+  await toggleDebug()
+}
+
+function toggleRpcFromMenu() {
+  menuOpen.value = false
+  showRpcSettings.value = !showRpcSettings.value
+}
+
 function toggleDebugLogs() {
   debugLogsEnabled.value = !debugLogsEnabled.value
   setDebugLogsEnabled(debugLogsEnabled.value)
 }
+
+async function saveRpcEndpoint() {
+  rpcSaving.value = true
+  rpcError.value = ''
+  rpcNotice.value = ''
+  try {
+    const next = normalizeRpcEndpoint(rpcInput.value)
+    if (!isValidRpcEndpoint(next)) throw new Error('Invalid URL. Use full http(s) endpoint.')
+    const saved = setRpcEndpointPreference(next)
+    customRpcEndpoint.value = saved
+    rpc.setEndpoint(saved)
+    await startDeltaSync()
+    rpcNotice.value = 'RPC endpoint updated.'
+    if (showDebug.value) await loadDebug()
+  } catch (err) {
+    rpcError.value = err?.message ?? String(err)
+  } finally {
+    rpcSaving.value = false
+  }
+}
+
+async function resetRpcEndpoint() {
+  rpcSaving.value = true
+  rpcError.value = ''
+  rpcNotice.value = ''
+  try {
+    clearRpcEndpointPreference()
+    customRpcEndpoint.value = null
+    rpcInput.value = defaultRpcEndpoint
+    rpc.setEndpoint(defaultRpcEndpoint)
+    await startDeltaSync()
+    rpcNotice.value = 'Using default RPC endpoint.'
+    if (showDebug.value) await loadDebug()
+  } catch (err) {
+    rpcError.value = err?.message ?? String(err)
+  } finally {
+    rpcSaving.value = false
+  }
+}
+
+function onDocumentPointerDown(event) {
+  if (!menuOpen.value) return
+  const root = menuRef.value
+  if (root && !root.contains(event.target)) {
+    menuOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocumentPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+})
 </script>
 
 <template>
@@ -85,14 +174,36 @@ function toggleDebugLogs() {
           <p class="nq-label !m-0 text-[var(--nf-muted)]">Profile</p>
           <h1 class="nq-h3 !m-0">Account</h1>
         </div>
-        <button
-          type="button"
-          class="nf-focus rounded-md px-2 py-1 text-[11px] text-[var(--nf-muted)]/70 hover:text-[var(--nf-muted)]"
-          title="Toggle diagnostics"
-          @click="toggleDebug"
-        >
-          ···
-        </button>
+        <div ref="menuRef" class="relative">
+          <button
+            type="button"
+            class="nf-focus rounded-md px-2 py-1 text-[11px] text-[var(--nf-muted)]/70 hover:text-[var(--nf-muted)]"
+            title="Profile options"
+            @click="toggleMenu"
+          >
+            ···
+          </button>
+          <div
+            v-if="menuOpen"
+            class="absolute right-0 z-30 mt-1 w-40 rounded-lg border border-[var(--nf-border)] bg-white p-1 shadow-sm"
+          >
+            <button
+              type="button"
+              class="nf-focus block w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--nf-text)] hover:bg-[var(--nf-soft)]"
+              @click="toggleDebugFromMenu"
+            >
+              {{ showDebug ? 'Hide diagnostics' : 'Show diagnostics' }}
+            </button>
+            <button
+              v-if="isSelf"
+              type="button"
+              class="nf-focus block w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--nf-text)] hover:bg-[var(--nf-soft)]"
+              @click="toggleRpcFromMenu"
+            >
+              {{ showRpcSettings ? 'Hide custom RPC' : 'Custom RPC' }}
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -157,6 +268,62 @@ function toggleDebugLogs() {
     </div>
 
     <ProfileCard v-else :user="user" :address="address" />
+
+    <div v-if="isSelf && showRpcSettings" class="px-4 pt-3 sm:px-6">
+      <section class="rounded-xl border border-[var(--nf-border)] bg-white p-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="nq-label !m-0 text-[var(--nf-muted)]">RPC Endpoint</p>
+            <p class="mt-1 text-xs text-[var(--nf-muted)]">
+              Change chain data source. Default is used when custom is empty.
+            </p>
+          </div>
+          <span
+            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+            :class="
+              customRpcEndpoint
+                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                : 'border-[var(--nf-border)] bg-[var(--nf-soft)] text-[var(--nf-muted)]'
+            "
+          >
+            {{ customRpcEndpoint ? 'custom' : 'default' }}
+          </span>
+        </div>
+
+        <label class="mt-3 block text-[11px] font-semibold text-[var(--nf-muted)]">Endpoint URL</label>
+        <input
+          v-model="rpcInput"
+          type="url"
+          class="nf-focus mt-1 w-full rounded-lg border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)]"
+          placeholder="https://rpc-mainnet.nimiqscan.com"
+          autocomplete="off"
+          spellcheck="false"
+        />
+
+        <p class="mt-2 break-all text-[11px] text-[var(--nf-muted)]">default: {{ defaultRpcEndpoint }}</p>
+        <p v-if="rpcError" class="mt-1 text-xs text-rose-600">{{ rpcError }}</p>
+        <p v-else-if="rpcNotice" class="mt-1 text-xs text-emerald-700">{{ rpcNotice }}</p>
+
+        <div class="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            :disabled="rpcSaving"
+            @click="saveRpcEndpoint"
+          >
+            {{ rpcSaving ? 'Saving…' : 'Save endpoint' }}
+          </button>
+          <button
+            type="button"
+            class="nf-focus rounded-full border border-[var(--nf-border)] px-4 py-2 text-xs font-semibold text-[var(--nf-muted)] hover:text-[var(--nf-text)] disabled:opacity-50"
+            :disabled="rpcSaving"
+            @click="resetRpcEndpoint"
+          >
+            Reset default
+          </button>
+        </div>
+      </section>
+    </div>
 
     <div v-if="loading && !posts.length" class="px-4 pt-4 sm:px-6 space-y-3">
       <PostSkeleton v-for="i in 3" :key="i" />

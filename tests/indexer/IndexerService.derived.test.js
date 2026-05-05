@@ -108,4 +108,53 @@ describe('IndexerService.syncDerivedAddress', () => {
     await run
     expect(updated).toBe(true)
   })
+
+  it('repairs stale duplicate username owners during delta sync', async () => {
+    await db.profile_claims.put({
+      username: 'alice',
+      address: 'NQ01 WINNER',
+      display_name: 'Alice Winner',
+      block_height: 90,
+      tx_index: 0,
+      tx_hash: 'tx-old',
+    })
+    await db.profile_claims.put({
+      username: 'alice',
+      address: 'NQ02 LOSER',
+      display_name: 'Alice Loser',
+      block_height: 100,
+      tx_index: 0,
+      tx_hash: 'tx-new',
+    })
+    await db.users.put({
+      address: 'NQ01 WINNER',
+      display_name: null,
+      username: null,
+      username_height: null,
+      username_tx_index: null,
+      last_synced_height: 0,
+    })
+    await db.users.put({
+      address: 'NQ02 LOSER',
+      display_name: 'Alice Loser',
+      username: 'alice',
+      username_height: 100,
+      username_tx_index: 0,
+      last_synced_height: 100,
+    })
+
+    const rpc = {
+      getTransactionsByAddress: vi.fn().mockResolvedValue([]),
+      normalizeTransaction: (raw) => raw,
+    }
+
+    const svc = new IndexerService(rpc)
+    await svc.startDeltaSync()
+
+    const winner = await db.users.get('NQ01 WINNER')
+    const loser = await db.users.get('NQ02 LOSER')
+    expect(winner?.username).toBe('alice')
+    expect(winner?.display_name).toBe('Alice Winner')
+    expect(loser?.username ?? null).toBeNull()
+  })
 })

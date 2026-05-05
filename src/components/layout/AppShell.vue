@@ -7,7 +7,8 @@ import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useHub } from '../../chain/hub.js'
 import { provideIndexer } from '../../indexer/useIndexer.js'
-import { rpc, TESTNET_ENDPOINT, DEFAULT_ENDPOINT } from '../../chain/rpc.js'
+import { rpc } from '../../chain/rpc.js'
+import { getDefaultRpcEndpoint, resolveRpcEndpoint } from '../../chain/rpcSettings.js'
 import {
   POST_CATALOG_ADDRESS,
   FOLLOW_CATALOG_ADDRESS,
@@ -30,15 +31,17 @@ function syncAuthProfile() {
 }
 
 onMounted(() => {
-  hub.warmup()
   const network = String(import.meta.env.VITE_NIMFEED_NETWORK || '').toLowerCase()
-  if (network === 'testnet') {
-    rpc.setEndpoint(TESTNET_ENDPOINT)
-  }
+  const defaultRpc = getDefaultRpcEndpoint(network)
+  const activeRpc = resolveRpcEndpoint(network)
+  rpc.setEndpoint(activeRpc)
+  hub.warmup()
   if (import.meta.env.DEV) {
     console.info('[NimFeed config]', {
       network: network || 'mainnet(default)',
-      rpc: network === 'testnet' ? TESTNET_ENDPOINT : DEFAULT_ENDPOINT,
+      rpc: activeRpc,
+      rpcDefault: defaultRpc,
+      rpcCustom: activeRpc !== defaultRpc,
       postCatalog: POST_CATALOG_ADDRESS,
       followCatalog: FOLLOW_CATALOG_ADDRESS,
       dataRecipient: NON_SELF_TX_RECIPIENT,

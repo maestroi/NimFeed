@@ -39,6 +39,65 @@ export async function searchUsernames(query) {
 export const putUser = (user) => db.users.put(user)
 export const getUser = (address) => db.users.get(address)
 export const updateUser = (address, changes) => db.users.update(address, changes)
+export const getUsersByUsername = (username) => db.users.where('username').equals(username).toArray()
+
+function isEarlier(a, b) {
+  return a.block_height < b.block_height || (a.block_height === b.block_height && a.tx_index < b.tx_index)
+}
+
+function isLater(a, b) {
+  return a.block_height > b.block_height || (a.block_height === b.block_height && a.tx_index > b.tx_index)
+}
+
+export async function reconcileUsernameOwnership() {
+  const claims = await db.profile_claims.toArray()
+  if (!claims.length) return
+
+  const winners = new Map()
+  const latestByWinner = new Map()
+  for (const claim of claims) {
+    const winner = winners.get(claim.username)
+    if (!winner || isEarlier(claim, winner)) {
+      winners.set(claim.username, claim)
+    }
+    const ownerKey = `${claim.username}\u0000${claim.address}`
+    const latest = latestByWinner.get(ownerKey)
+    if (!latest || isLater(claim, latest)) {
+      latestByWinner.set(ownerKey, claim)
+    }
+  }
+
+  const users = await db.users.toArray()
+  for (const user of users) {
+    if (!user.username) continue
+    const winner = winners.get(user.username)
+    if (!winner || winner.address !== user.address) {
+      await db.users.update(user.address, {
+        username: null,
+        username_height: null,
+        username_tx_index: null,
+      })
+    }
+  }
+
+  for (const [username, winner] of winners) {
+    const ownerKey = `${username}\u0000${winner.address}`
+    const latest = latestByWinner.get(ownerKey)
+    const existing = await db.users.get(winner.address)
+    const patch = {
+      display_name: latest?.display_name ?? existing?.display_name ?? null,
+      username,
+      username_height: winner.block_height,
+      username_tx_index: winner.tx_index,
+      last_synced_height: Math.max(existing?.last_synced_height ?? 0, winner.block_height ?? 0),
+    }
+    if (existing) {
+      await db.users.update(winner.address, patch)
+    } else {
+      await db.users.put({ address: winner.address, ...patch })
+    }
+  }
+}
 
 // Posts
 export const putPost = (post) => db.posts.put(post)

@@ -33,6 +33,19 @@ describe('processPostCatalogTx', () => {
     expect(user?.username).toBe('alice')
   })
 
+  it('reconciles username winner when older claim arrives later', async () => {
+    await processPostCatalogTx(tx(buildProfileClaim('alice', 'Second'), 'NQ02 SECOND', POST_CATALOG_ADDRESS, 100, 0))
+    let second = await db.users.get('NQ02 SECOND')
+    expect(second?.username).toBe('alice')
+
+    await processPostCatalogTx(tx(buildProfileClaim('alice', 'First'), 'NQ01 FIRST', POST_CATALOG_ADDRESS, 90, 0))
+
+    const first = await db.users.get('NQ01 FIRST')
+    second = await db.users.get('NQ02 SECOND')
+    expect(first?.username).toBe('alice')
+    expect(second?.username ?? null).toBeNull()
+  })
+
   it('ignores PROFILE_CLAIM not sent to post catalog', async () => {
     await processPostCatalogTx(tx(buildProfileClaim('alice', 'Alice A'), 'NQ01 SENDER', 'NQ02 OTHER'))
     const n = await db.profile_claims.count()
