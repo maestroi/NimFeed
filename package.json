@@ -11,7 +11,7 @@
     "admin:bootstrap": "node scripts/admin-bootstrap.mjs"
   },
   "dependencies": {
-    "@nimiq/hub-api": "^1.13.0",
+    "@nimiq/hub-api": "^1.14.0",
     "@nimiq/identicons": "^1.6.2",
     "dexie": "^4.0.0",
     "pinia": "^3.0.0",
