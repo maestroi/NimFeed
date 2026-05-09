@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
 import { getUser } from '../../db/queries.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
+import LinkifiedText from '../common/LinkifiedText.vue'
 
 const props = defineProps({
   post: Object,
@@ -162,7 +163,7 @@ const cardClass = computed(() => [
               v-if="showContent"
               class="nq-text whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[var(--nf-text)]"
             >
-              {{ post.content }}
+              <LinkifiedText :text="post.content" />
             </p>
             <p v-else-if="post.status === 'missing_chunks'" class="nq-text-s italic text-[var(--nf-muted)]">
               Post unavailable
@@ -214,7 +215,7 @@ const cardClass = computed(() => [
             v-if="showContent"
             class="nq-text whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[var(--nf-text)]"
           >
-            {{ post.content }}
+            <LinkifiedText :text="post.content" />
           </p>
           <p v-else-if="post.status === 'missing_chunks'" class="nq-text-s italic text-[var(--nf-muted)]">
             Post unavailable

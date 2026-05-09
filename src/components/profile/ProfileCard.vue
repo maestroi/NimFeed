@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
 import { EXPLORER_BASE_URL } from '../../protocol/constants.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
+import LinkifiedText from '../common/LinkifiedText.vue'
 
 const props = defineProps({
   user: Object,
@@ -86,7 +87,9 @@ function handleFollowClick() {
             </svg>
           </a>
         </div>
-        <p v-if="user?.bio" class="nq-text mt-3">{{ user.bio }}</p>
+        <p v-if="user?.bio" class="nq-text mt-3 whitespace-pre-wrap break-words">
+          <LinkifiedText :text="user.bio" />
+        </p>
       </div>
 
       <div class="mt-4 flex gap-3">

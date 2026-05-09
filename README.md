@@ -1,8 +1,10 @@
 # NimFeed
 
+[![Live on GitHub Pages](https://img.shields.io/badge/Live-GitHub%20Pages-324fff?logo=github)](https://maestroi.github.io/NimFeed/)
+
 NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile claims and posts on-chain, then builds local timelines by indexing chain data in the browser.
 
-Live app: `https://maestroi.github.io/NimFeed/`
+**Live:** [maestroi.github.io/NimFeed](https://maestroi.github.io/NimFeed/)
 
 ## What it does
 
@@ -140,9 +142,9 @@ Test environment:
 
 ## Related docs
 
-- `docs/superpowers/specs/2026-05-05-nimfeed-design.md`
-- `docs/superpowers/plans/2026-05-05-nimfeed-phase1.md`
-- `docs/superpowers/plans/2026-05-05-nimfeed-phase2.md`
-- `docs/superpowers/plans/2026-05-05-nimfeed-phase3.md`
-- `docs/operations/2026-05-05-admin-bootstrap-cli.md`
-- `docs/operations/2026-05-05-wallet-operations.md`
+- [Design spec](docs/superpowers/specs/2026-05-05-nimfeed-design.md)
+- [Phase 1 plan](docs/superpowers/plans/2026-05-05-nimfeed-phase1.md)
+- [Phase 2 plan](docs/superpowers/plans/2026-05-05-nimfeed-phase2.md)
+- [Phase 3 plan](docs/superpowers/plans/2026-05-05-nimfeed-phase3.md)
+- [Admin bootstrap CLI](docs/operations/2026-05-05-admin-bootstrap-cli.md)
+- [Wallet operations](docs/operations/2026-05-05-wallet-operations.md)
