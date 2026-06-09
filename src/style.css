@@ -127,6 +127,29 @@ body {
   background: linear-gradient(135deg, rgba(5, 130, 202, 0.12) 0%, rgba(233, 178, 19, 0.14) 100%);
 }
 
+@keyframes nf-refresh-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(420%);
+  }
+}
+
+.nf-refresh-indeterminate {
+  animation: nf-refresh-indeterminate 1.15s ease-in-out infinite;
+}
+
+.nf-pull-indicator {
+  pointer-events: none;
+  will-change: height, opacity;
+}
+
+.nf-pull-content {
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

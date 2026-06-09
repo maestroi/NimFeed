@@ -16,10 +16,18 @@ function writeNullTerminated(buf, offset, maxLen, str) {
 }
 
 export function buildProfileClaim(username, displayName) {
-  const buf = makePayload(TYPES.PROFILE_CLAIM)
   const normalized = normalizeUsername(username) ?? username.toLowerCase().slice(0, 31)
-  writeNullTerminated(buf, 4, 32, normalized)
-  writeNullTerminated(buf, 36, 24, displayName ?? '')
+  const usernameBytes = new TextEncoder().encode(normalized)
+  const dnBytes = new TextEncoder().encode((displayName ?? '').slice(0, 23))
+  // Compact: header(4) + username + 0x00 separator + displayName (exact size, no padding)
+  // Decoder distinguishes from legacy 64-byte fixed format by payload length.
+  const buf = new Uint8Array(4 + usernameBytes.length + 1 + dnBytes.length)
+  buf[0] = MAGIC[0]
+  buf[1] = MAGIC[1]
+  buf[2] = VERSION
+  buf[3] = TYPES.PROFILE_CLAIM
+  buf.set(usernameBytes, 4)
+  buf.set(dnBytes, 4 + usernameBytes.length + 1)
   return buf
 }
 

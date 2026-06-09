@@ -46,8 +46,22 @@ function readNullTerminated(bytes, offset, maxLen) {
 }
 
 function decodeProfileClaim(base, bytes) {
-  const username = readNullTerminated(bytes, 4, 32)
-  const displayName = readNullTerminated(bytes, 36, 24)
+  let username, displayName
+  if (bytes.length === 64) {
+    // Legacy fixed-layout: username at [4..35], displayName at [36..59]
+    username = readNullTerminated(bytes, 4, 32)
+    displayName = readNullTerminated(bytes, 36, 24)
+  } else {
+    // Compact: header(4) + username + 0x00 + displayName
+    let nullPos = bytes.length
+    for (let i = 4; i < bytes.length; i++) {
+      if (bytes[i] === 0) { nullPos = i; break }
+    }
+    username = new TextDecoder().decode(bytes.slice(4, nullPos))
+    displayName = nullPos < bytes.length
+      ? new TextDecoder().decode(trimNulls(bytes.slice(nullPos + 1)))
+      : ''
+  }
   return { ...base, event: 'PROFILE_CLAIM', username, displayName }
 }
 

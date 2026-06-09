@@ -93,21 +93,13 @@ export function usePost() {
 
   async function claimProfile(username, displayName) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
-    walletRuntime.assertBinaryTransactionsSupported()
     const currentWinner = await getWinningClaim(username)
     if (currentWinner?.address && !sameAddress(currentWinner.address, auth.address)) {
       throw new Error(`@${username} is already taken.`)
     }
 
     const payload = buildProfileClaim(username, displayName)
-    const signed = await hub.signTransaction({
-      sender: auth.address,
-      recipient: POST_CATALOG_ADDRESS,
-      value: TX_VALUE_LUNA,
-      fee: 0,
-      extraData: payload,
-    })
-    await rpc.sendRawTransaction(signed.serializedTx)
+    await sendPayload(POST_CATALOG_ADDRESS, payload)
     await startDeltaSync()
     await auth.loadProfile()
     if (auth.username !== username) {

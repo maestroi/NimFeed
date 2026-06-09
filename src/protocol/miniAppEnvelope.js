@@ -8,6 +8,8 @@ export const MINI_APP_INLINE_DATA_SIZE = 17
 
 function semanticEnd(payload) {
   switch (payload[3]) {
+    case TYPES.PROFILE_CLAIM:
+      return 4
     case TYPES.POST_START:
       return payload[13] & 0x02 ? 50 : 22
     case TYPES.POST_CHUNK:

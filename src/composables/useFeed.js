@@ -187,18 +187,30 @@ export function useFeed(mode = 'global') {
   async function refreshGlobal() {
     const t0 = performance.now()
     debug(mode, 'refreshGlobal:start')
-    await startDeltaSync()
-    debug(mode, 'refreshGlobal:deltaSyncDone', { ms: Math.round(performance.now() - t0) })
-    await reloadGlobal()
+    loading.value = true
+    try {
+      await startDeltaSync()
+      debug(mode, 'refreshGlobal:deltaSyncDone', { ms: Math.round(performance.now() - t0) })
+      await reloadGlobal()
+    } catch (err) {
+      loading.value = false
+      throw err
+    }
   }
 
   async function refreshFollowing() {
     if (!auth.isLoggedIn) return
     const t0 = performance.now()
     debug(mode, 'refreshFollowing:start')
-    await startDeltaSync()
-    debug(mode, 'refreshFollowing:deltaSyncDone', { ms: Math.round(performance.now() - t0) })
-    await reloadFollowing()
+    loading.value = true
+    try {
+      await startDeltaSync()
+      debug(mode, 'refreshFollowing:deltaSyncDone', { ms: Math.round(performance.now() - t0) })
+      await reloadFollowing()
+    } catch (err) {
+      loading.value = false
+      throw err
+    }
   }
 
   async function reloadGlobal() {

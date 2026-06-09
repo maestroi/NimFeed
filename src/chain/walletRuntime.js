@@ -14,7 +14,7 @@ function providerError(value) {
   return value.error?.message || 'Nimiq Pay provider request failed.'
 }
 
-async function defaultDerivePublicKeyAddress(publicKey) {
+function deriveAddressFromPublicKey(publicKey) {
   return addressBytesToNq(blake2b(hexToBytes(publicKey), { dkLen: 32 }).slice(0, 20))
 }
 
@@ -22,7 +22,6 @@ export function createWalletRuntime({
   initMiniApp = init,
   hub = useHub(),
   timeout = 10_000,
-  derivePublicKeyAddress = defaultDerivePublicKeyAddress,
 } = {}) {
   const kind = ref('detecting')
   const provider = shallowRef(null)
@@ -61,7 +60,7 @@ export function createWalletRuntime({
         const signed = await provider.value.sign('Login to NimFeed')
         const signError = providerError(signed)
         if (signError) throw new Error(signError)
-        if (signed?.publicKey) return derivePublicKeyAddress(signed.publicKey)
+        if (signed?.publicKey) return deriveAddressFromPublicKey(signed.publicKey)
       }
       return result[0]
     }

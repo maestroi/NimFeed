@@ -26,7 +26,7 @@ async function connect() {
     await startDeltaSync()
 
     const user = await getUser(address)
-    if (!user?.username && walletRuntime.canWriteBinaryTransactions.value) {
+    if (!user?.username && walletRuntime.canPublishPosts.value) {
       step.value = 'onboarding'
     } else {
       await auth.loadProfile()

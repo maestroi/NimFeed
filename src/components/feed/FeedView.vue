@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useFeed } from '../../composables/useFeed.js'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
@@ -13,6 +13,7 @@ const { indexer } = useIndexer()
 const tipHeight = ref(0)
 const telegramBotUrl = 'https://t.me/nimiq_notifier_bot'
 const aceStakingUrl = 'https://acestaking.com/'
+const PULL_THRESHOLD = 64
 
 const globalFeed = useFeed('global')
 const followingFeed = useFeed('following')
@@ -23,8 +24,29 @@ const followingPosts = followingFeed.posts
 const followingLoading = followingFeed.loading
 const followingHasMore = followingFeed.hasMore
 
+const rootRef = ref(null)
+const pullIndicatorRef = ref(null)
+const pullArrowRef = ref(null)
+const pullLabelRef = ref(null)
+const pullContentRef = ref(null)
+
+let scrollEl = null
+let touchStartY = 0
+let touchActive = false
+let currentPull = 0
+let pullRafId = 0
+let pendingPull = 0
+
 function current() {
   return ui.activeTab === 'following' ? followingFeed : globalFeed
+}
+
+const feedLoading = computed(() =>
+  ui.activeTab === 'following' ? followingLoading.value : globalLoading.value,
+)
+
+function isAtScrollTop() {
+  return scrollEl && scrollEl.scrollTop <= 2
 }
 
 function switchTab(tab) {
@@ -32,18 +54,122 @@ function switchTab(tab) {
   ui.activeTab = tab
 }
 
+function applyPullVisual(distance) {
+  currentPull = distance
+  const indicator = pullIndicatorRef.value
+  const arrow = pullArrowRef.value
+  const label = pullLabelRef.value
+  const content = pullContentRef.value
+  if (!indicator) return
+
+  if (distance <= 0) {
+    indicator.style.height = '0px'
+    indicator.style.opacity = '0'
+    if (content) content.style.transform = ''
+    return
+  }
+
+  indicator.style.height = `${distance}px`
+  indicator.style.opacity = '1'
+  if (arrow) {
+    arrow.style.transform = `rotate(${Math.min(distance / PULL_THRESHOLD, 1) * 180}deg)`
+  }
+  if (label) {
+    label.textContent = distance >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'
+  }
+  if (content) content.style.transform = `translate3d(0, ${distance}px, 0)`
+}
+
+function queuePullVisual(distance) {
+  pendingPull = distance
+  if (pullRafId) return
+  pullRafId = requestAnimationFrame(() => {
+    pullRafId = 0
+    applyPullVisual(pendingPull)
+  })
+}
+
+function resetPull() {
+  touchActive = false
+  queuePullVisual(0)
+}
+
+function pullDistanceFromDelta(delta) {
+  return Math.min(delta * 0.7, 96)
+}
+
+async function onPullRelease() {
+  const pulled = currentPull
+  if (pulled < PULL_THRESHOLD || feedLoading.value) {
+    resetPull()
+    return
+  }
+  applyPullVisual(PULL_THRESHOLD)
+  try {
+    await current().refresh()
+  } finally {
+    applyPullVisual(0)
+  }
+}
+
+function onTouchStart(event) {
+  if (!scrollEl || !isAtScrollTop() || feedLoading.value) return
+  touchStartY = event.touches[0].clientY
+  touchActive = true
+}
+
+function onTouchMove(event) {
+  if (!touchActive || !scrollEl) {
+    return
+  }
+  if (!isAtScrollTop()) {
+    resetPull()
+    return
+  }
+  const delta = event.touches[0].clientY - touchStartY
+  if (delta <= 0) {
+    queuePullVisual(0)
+    return
+  }
+  queuePullVisual(pullDistanceFromDelta(delta))
+  if (delta > 6) event.preventDefault()
+}
+
+function onTouchEnd() {
+  if (!touchActive) return
+  touchActive = false
+  void onPullRelease()
+}
+
 onMounted(() => {
   current().refresh()
   indexer.addEventListener('catalog:updated', onCatalogUpdated)
+  scrollEl = rootRef.value?.closest('main') ?? null
+  if (scrollEl) {
+    const capture = { capture: true }
+    scrollEl.addEventListener('touchstart', onTouchStart, { ...capture, passive: true })
+    scrollEl.addEventListener('touchmove', onTouchMove, { ...capture, passive: false })
+    scrollEl.addEventListener('touchend', onTouchEnd, capture)
+    scrollEl.addEventListener('touchcancel', onTouchEnd, capture)
+  }
 })
 
 onBeforeUnmount(() => {
+  if (pullRafId) cancelAnimationFrame(pullRafId)
   indexer.removeEventListener('catalog:updated', onCatalogUpdated)
+  if (scrollEl) {
+    const capture = { capture: true }
+    scrollEl.removeEventListener('touchstart', onTouchStart, capture)
+    scrollEl.removeEventListener('touchmove', onTouchMove, capture)
+    scrollEl.removeEventListener('touchend', onTouchEnd, capture)
+    scrollEl.removeEventListener('touchcancel', onTouchEnd, capture)
+  }
 })
 
 watch(
   () => ui.activeTab,
   () => {
+    resetPull()
     current().refresh()
   },
 )
@@ -54,8 +180,35 @@ function onCatalogUpdated() {
 </script>
 
 <template>
-  <div class="pb-4">
-    <header class="sticky top-0 z-20 border-b nf-divider bg-white/90 backdrop-blur">
+  <div ref="rootRef" class="pb-4">
+    <div
+      ref="pullIndicatorRef"
+      class="nf-pull-indicator flex items-end justify-center gap-2 overflow-hidden text-xs font-semibold text-[var(--nf-primary)]"
+      style="height: 0; opacity: 0"
+      aria-live="polite"
+    >
+      <svg ref="pullArrowRef" viewBox="0 0 24 24" class="h-4 w-4 shrink-0" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 4a1 1 0 0 1 1 1v9.17l2.59-2.58a1 1 0 1 1 1.42 1.42l-4.3 4.29a1 1 0 0 1-1.42 0l-4.3-4.29a1 1 0 1 1 1.42-1.42L11 14.17V5a1 1 0 0 1 1-1z"
+        />
+      </svg>
+      <span ref="pullLabelRef">Pull to refresh</span>
+    </div>
+
+    <div ref="pullContentRef" class="nf-pull-content">
+    <header class="sticky top-0 z-20 relative border-b nf-divider bg-white/90 backdrop-blur">
+      <div
+        v-if="feedLoading"
+        class="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
+        aria-hidden="true"
+      >
+        <div
+          class="nf-refresh-indeterminate h-full w-1/3 rounded-full"
+          style="background: linear-gradient(90deg, transparent, var(--nf-primary), var(--nf-gold), transparent)"
+        />
+      </div>
+
       <div class="px-4 py-3 sm:px-6">
         <div>
           <p class="nq-label !m-0 text-[var(--nf-muted)]">Nimiq Social</p>
@@ -81,10 +234,30 @@ function onCatalogUpdated() {
           </button>
           <button
             type="button"
-            class="nf-focus ml-auto text-xs font-semibold text-[var(--nf-primary)] hover:text-[var(--nf-primary-strong)]"
+            class="nf-focus ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--nf-primary)] hover:text-[var(--nf-primary-strong)] disabled:opacity-70"
+            :disabled="feedLoading"
+            :aria-busy="feedLoading"
             @click="current().refresh()"
           >
-            Refresh
+            <svg
+              v-if="feedLoading"
+              viewBox="0 0 24 24"
+              class="h-3.5 w-3.5 animate-spin"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-dasharray="42"
+                stroke-dashoffset="12"
+              />
+            </svg>
+            {{ feedLoading ? 'Refreshing…' : 'Refresh' }}
           </button>
         </div>
 
@@ -118,6 +291,28 @@ function onCatalogUpdated() {
         </div>
       </div>
     </header>
+
+    <div
+      v-if="feedLoading"
+      class="flex items-center justify-center gap-2 border-b nf-divider bg-[var(--nf-soft)] px-4 py-2.5 text-xs font-semibold text-[var(--nf-primary)]"
+      role="status"
+      aria-live="polite"
+    >
+      <svg viewBox="0 0 24 24" class="h-4 w-4 animate-spin" aria-hidden="true">
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-dasharray="42"
+          stroke-dashoffset="12"
+        />
+      </svg>
+      Syncing latest posts…
+    </div>
 
     <template v-if="ui.activeTab === 'global'">
       <div v-if="globalLoading && !globalPosts.length" class="px-4 pt-4 sm:px-6 space-y-3">
@@ -173,5 +368,6 @@ function onCatalogUpdated() {
         </div>
       </template>
     </template>
+    </div>
   </div>
 </template>

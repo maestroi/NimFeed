@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProfile } from '../../composables/useProfile.js'
 import { useAuthStore } from '../../stores/auth.js'
+import { usePost } from '../../composables/usePost.js'
 import { db } from '../../db/schema.js'
 import { rpc } from '../../chain/rpc.js'
 import {
@@ -25,6 +26,21 @@ const route = useRoute()
 const address = route.params.address
 const { user, posts, loading } = useProfile(address)
 const { startDeltaSync } = useIndexer()
+const { claimProfile } = usePost()
+
+const savingProfile = ref(false)
+
+async function handleSaveProfile({ username, displayName, onSuccess, onError }) {
+  savingProfile.value = true
+  try {
+    await claimProfile(username, displayName)
+    onSuccess()
+  } catch (err) {
+    onError(err.message)
+  } finally {
+    savingProfile.value = false
+  }
+}
 
 const showDebug = ref(false)
 const showRpcSettings = ref(false)
@@ -267,7 +283,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <ProfileCard v-else :user="user" :address="address" />
+    <ProfileCard v-else :user="user" :address="address" :saving-profile="savingProfile" @save-profile="handleSaveProfile" />
 
     <div v-if="isSelf && showRpcSettings" class="px-4 pt-3 sm:px-6">
       <section class="rounded-xl border border-[var(--nf-border)] bg-white p-4">
