@@ -112,6 +112,33 @@ export async function getPostsByAuthor(author) {
     .toArray()
 }
 
+export async function getMostActiveUsers(limit = 10) {
+  const posts = await db.posts.toArray()
+  const activityByAddress = new Map()
+
+  for (const post of posts) {
+    if (post.status !== 'complete' && post.status !== 'inline') continue
+    const activity = activityByAddress.get(post.author) ?? { postCount: 0, latestHeight: 0 }
+    activity.postCount += 1
+    activity.latestHeight = Math.max(activity.latestHeight, post.block_height ?? 0)
+    activityByAddress.set(post.author, activity)
+  }
+
+  const addresses = [...activityByAddress.keys()]
+  const users = await db.users.bulkGet(addresses)
+
+  return users
+    .filter((user) => user?.username)
+    .map((user) => ({ ...user, ...activityByAddress.get(user.address) }))
+    .sort(
+      (a, b) =>
+        b.postCount - a.postCount ||
+        b.latestHeight - a.latestHeight ||
+        a.username.localeCompare(b.username),
+    )
+    .slice(0, limit)
+}
+
 export async function getReplies(replyToAuthor, replyToPostId) {
   return db.posts
     .where('[reply_to_author+reply_to_post_id]')

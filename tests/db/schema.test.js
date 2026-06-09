@@ -8,6 +8,7 @@ import {
   putCatalogRef,
   getCatalogRefs,
   putProfileClaim,
+  getMostActiveUsers,
 } from '../../src/db/queries.js'
 
 beforeEach(async () => {
@@ -83,6 +84,29 @@ describe('posts store', () => {
     const post = await getPost('NQ01 TEST', '0000000100000001')
     expect(post.status).toBe('pending')
     expect(post.total_chunks).toBe(2)
+  })
+
+  it('ranks claimed users by completed post count', async () => {
+    await Promise.all([
+      putUser({ address: 'NQ01 ALICE', display_name: 'Alice', username: 'alice' }),
+      putUser({ address: 'NQ02 BOB', display_name: 'Bob', username: 'bob' }),
+      putUser({ address: 'NQ03 HIDDEN', display_name: 'Hidden', username: null }),
+    ])
+
+    await Promise.all([
+      putPost({ author: 'NQ01 ALICE', post_id: '1', block_height: 10, status: 'inline' }),
+      putPost({ author: 'NQ01 ALICE', post_id: '2', block_height: 12, status: 'complete' }),
+      putPost({ author: 'NQ01 ALICE', post_id: '3', block_height: 14, status: 'pending' }),
+      putPost({ author: 'NQ02 BOB', post_id: '1', block_height: 11, status: 'inline' }),
+      putPost({ author: 'NQ03 HIDDEN', post_id: '1', block_height: 13, status: 'inline' }),
+    ])
+
+    const users = await getMostActiveUsers(10)
+
+    expect(users).toEqual([
+      expect.objectContaining({ address: 'NQ01 ALICE', username: 'alice', postCount: 2 }),
+      expect.objectContaining({ address: 'NQ02 BOB', username: 'bob', postCount: 1 }),
+    ])
   })
 })
 
