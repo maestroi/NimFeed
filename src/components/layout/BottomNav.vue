@@ -2,11 +2,14 @@
 import { useRouter, useRoute } from 'vue-router'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
+import { shellClasses } from '../../chain/miniAppLayout.js'
 
 const router = useRouter()
 const route = useRoute()
 const ui = useUiStore()
 const auth = useAuthStore()
+const walletRuntime = getWalletRuntime()
 
 function openComposerFresh() {
   if (!auth.isLoggedIn) {
@@ -19,8 +22,8 @@ function openComposerFresh() {
 </script>
 
 <template>
-  <nav class="absolute bottom-3 inset-x-0 z-40 px-3 sm:px-4">
-    <div class="nf-card px-2 py-2">
+  <nav :class="shellClasses(walletRuntime.isNimiqPay.value).nav">
+    <div :class="shellClasses(walletRuntime.isNimiqPay.value).navInner">
       <div class="grid grid-cols-4 items-center gap-2">
         <button
           type="button"

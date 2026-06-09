@@ -50,6 +50,23 @@ describe('wallet runtime', () => {
     expect(hub.signMessage).not.toHaveBeenCalled()
   })
 
+  it('does not proxy injected providers that use private fields', async () => {
+    class PrivateProvider {
+      #accounts = ['NQ00 PRIVATE ACCOUNT']
+
+      listAccounts() {
+        return this.#accounts
+      }
+    }
+
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(new PrivateProvider()),
+      hub,
+    })
+
+    await expect(runtime.connect()).resolves.toBe('NQ00 PRIVATE ACCOUNT')
+  })
+
   it('normalizes provider errors and empty account lists', async () => {
     const provider = {
       listAccounts: vi
@@ -87,6 +104,17 @@ describe('wallet runtime', () => {
     expect(() => runtime.assertBinaryTransactionsSupported()).toThrow(
       BINARY_TRANSACTIONS_UNSUPPORTED,
     )
+  })
+
+  it('marks connection unavailable inside Nimiq Pay', async () => {
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue({ listAccounts: vi.fn() }),
+      hub,
+    })
+
+    await runtime.initialize()
+
+    expect(runtime.canConnect.value).toBe(false)
   })
 
   it('rejects binary protocol writes while runtime detection is pending', () => {

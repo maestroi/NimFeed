@@ -15,6 +15,7 @@ const error = ref(null)
 const step = ref('idle')
 
 async function connect() {
+  if (!walletRuntime.canConnect.value) return
   error.value = null
   step.value = 'connecting'
   try {
@@ -57,15 +58,16 @@ function closeModal() {
         <p class="text-gray-500 text-sm mb-6">
           {{
             walletRuntime.isNimiqPay.value
-              ? 'Share a Nimiq Pay account to use NimFeed.'
+              ? 'NimFeed is currently read-only inside Nimiq Pay.'
               : 'Sign in with your Nimiq wallet via Hub.'
           }}
         </p>
         <button
-          class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
+          class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          :disabled="!walletRuntime.canConnect.value"
           @click="connect"
         >
-          {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect with Nimiq Hub' }}
+          {{ walletRuntime.isNimiqPay.value ? 'Read-only in Nimiq Pay' : 'Connect with Nimiq Hub' }}
         </button>
         <p v-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
       </div>

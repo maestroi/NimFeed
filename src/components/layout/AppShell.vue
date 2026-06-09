@@ -6,7 +6,8 @@ import PostComposer from '../post/PostComposer.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useHub } from '../../chain/hub.js'
-import { initializeWalletRuntime } from '../../chain/walletRuntime.js'
+import { getWalletRuntime, initializeWalletRuntime } from '../../chain/walletRuntime.js'
+import { shellClasses } from '../../chain/miniAppLayout.js'
 import { provideIndexer } from '../../indexer/useIndexer.js'
 import { rpc } from '../../chain/rpc.js'
 import { getDefaultRpcEndpoint, resolveRpcEndpoint } from '../../chain/rpcSettings.js'
@@ -19,6 +20,7 @@ import {
 const ui = useUiStore()
 const auth = useAuthStore()
 const hub = useHub()
+const walletRuntime = getWalletRuntime()
 const indexer = provideIndexer(rpc)
 
 function closeComposer() {
@@ -63,10 +65,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="min-h-screen px-3 py-3 sm:flex sm:justify-center sm:px-6 sm:py-6">
-    <div
-      class="relative nf-page w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--nf-border)] h-[calc(100vh-1.5rem)] sm:h-[calc(100vh-3rem)]"
-    >
+  <div :class="shellClasses(walletRuntime.isNimiqPay.value).outer">
+    <div :class="shellClasses(walletRuntime.isNimiqPay.value).page">
       <main class="h-full overflow-y-auto pb-28">
         <router-view />
       </main>

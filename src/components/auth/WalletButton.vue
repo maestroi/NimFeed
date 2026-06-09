@@ -57,10 +57,11 @@ onBeforeUnmount(() => {
 <template>
   <button
     v-if="!auth.isLoggedIn"
-    class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700"
+    class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+    :disabled="!walletRuntime.canConnect.value"
     @click="ui.loginModalOpen = true"
   >
-    {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect Wallet' }}
+    {{ walletRuntime.isNimiqPay.value ? 'Read-only in Nimiq Pay' : 'Connect Wallet' }}
   </button>
   <div v-else ref="root" class="relative">
     <button

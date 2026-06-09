@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, shallowRef, ref } from 'vue'
 import { init } from '@nimiq/mini-app-sdk'
 import { useHub } from './hub.js'
 
@@ -16,10 +16,11 @@ export function createWalletRuntime({
   timeout = 10_000,
 } = {}) {
   const kind = ref('detecting')
-  const provider = ref(null)
+  const provider = shallowRef(null)
   let initialization = null
 
   const isNimiqPay = computed(() => kind.value === 'nimiq-pay')
+  const canConnect = computed(() => kind.value !== 'nimiq-pay')
   const canWriteBinaryTransactions = computed(() => kind.value === 'browser')
 
   async function initialize() {
@@ -65,6 +66,7 @@ export function createWalletRuntime({
   return {
     kind,
     isNimiqPay,
+    canConnect,
     canWriteBinaryTransactions,
     initialize,
     connect,
