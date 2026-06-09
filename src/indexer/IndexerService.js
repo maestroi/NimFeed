@@ -77,7 +77,11 @@ export class IndexerService extends EventTarget {
         const authorBytes = nqToAddressBytes(post.author)
         const postIdBytes = hexToPostIdBytes(post.post_id)
         const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
-        derivedTargets.add(addressBytesToNq(derivedBytes))
+        const derivedNq = addressBytesToNq(derivedBytes)
+        if (post.status === 'missing_chunks') {
+          await db.sync_state.delete(`derived:${normalizeNq(derivedNq)}`)
+        }
+        derivedTargets.add(derivedNq)
       } catch {
         /* ignore malformed post keys */
       }

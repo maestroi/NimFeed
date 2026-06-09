@@ -110,9 +110,11 @@ describe('IndexerService.syncDerivedAddress', () => {
   })
 
   it('retries derived sync for posts previously marked missing_chunks', async () => {
+    const author = 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD'
+    const postId = postIdToHex(new Uint8Array([8, 7, 6, 5, 4, 3, 2, 1]))
     await db.posts.put({
-      author: 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
-      post_id: postIdToHex(new Uint8Array([8, 7, 6, 5, 4, 3, 2, 1])),
+      author,
+      post_id: postId,
       tx_hash: 'start-tx',
       block_height: 100,
       tx_index: 0,
@@ -128,6 +130,15 @@ describe('IndexerService.syncDerivedAddress', () => {
       status: 'missing_chunks',
       first_seen_at: 100,
     })
+    const derivedNq = 'NQ18 63S2 SNQ0 523H NL9A YRB8 GXF0 G23G 8X7B'
+    const scopeKey = `derived:${derivedNq.replace(/\s+/g, '').toUpperCase()}`
+    await db.sync_state.put({
+      scope_key: scopeKey,
+      newest_seen_tx_hash: 'stale-newest',
+      oldest_synced_cursor: 'stale-oldest',
+      fully_synced: true,
+      last_synced_at: 1,
+    })
 
     const rpc = {
       getTransactionsByAddress: vi.fn().mockResolvedValue([]),
@@ -139,6 +150,8 @@ describe('IndexerService.syncDerivedAddress', () => {
     await svc.startDeltaSync()
 
     expect(derivedSpy).toHaveBeenCalledTimes(1)
+    expect(derivedSpy).toHaveBeenCalledWith(derivedNq)
+    expect(await db.sync_state.get(scopeKey)).toBeUndefined()
   })
 
   it('repairs stale duplicate username owners during delta sync', async () => {
