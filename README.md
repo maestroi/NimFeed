@@ -109,6 +109,9 @@ so publishing profiles, posts, replies, follows, and unfollows is disabled
 inside Nimiq Pay to avoid presenting actions that cannot complete. Account
 connection, reading, indexing, and navigation work normally.
 
+Nimiq Pay hides publishing, reply, and follow controls while this limitation
+applies.
+
 Normal browsers retain full write support through Nimiq Hub.
 
 Once deployed, the mini app can be opened with:

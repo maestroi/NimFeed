@@ -5,6 +5,7 @@ import { TENTATIVE_BLOCK_CONFIRMATIONS, EXPLORER_BASE_URL } from '../../protocol
 import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
 import { getUser } from '../../db/queries.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
 import LinkifiedText from '../common/LinkifiedText.vue'
 
@@ -17,6 +18,7 @@ const props = defineProps({
 
 const auth = useAuthStore()
 const ui = useUiStore()
+const walletRuntime = getWalletRuntime()
 
 const threadTo = computed(() => ({
   name: 'thread',
@@ -229,6 +231,7 @@ const cardClass = computed(() => [
           @click.stop
         >
           <button
+            v-if="walletRuntime.canWriteBinaryTransactions.value"
             type="button"
             class="nf-focus font-semibold hover:text-[var(--nf-primary)]"
             @click="onReply"

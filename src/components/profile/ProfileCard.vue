@@ -4,6 +4,7 @@ import { useFollow } from '../../composables/useFollow.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
 import { EXPLORER_BASE_URL } from '../../protocol/constants.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
 import LinkifiedText from '../common/LinkifiedText.vue'
 
@@ -13,6 +14,7 @@ const props = defineProps({
 })
 const auth = useAuthStore()
 const ui = useUiStore()
+const walletRuntime = getWalletRuntime()
 const { active, counts, pending, follow, unfollow } = useFollow(computed(() => props.address))
 
 const isSelf = computed(() => auth.address === props.address)
@@ -37,7 +39,7 @@ function handleFollowClick() {
         <AddressIdenticon :address="address" img-class="h-16 w-16" />
 
         <button
-          v-if="!isSelf"
+          v-if="!isSelf && walletRuntime.canWriteBinaryTransactions.value"
           type="button"
           :disabled="pending"
           :class="[

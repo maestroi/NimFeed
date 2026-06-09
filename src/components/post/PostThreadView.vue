@@ -9,10 +9,12 @@ import { useIndexer } from '../../indexer/useIndexer.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../../protocol/address.js'
 import { hexToPostIdBytes } from '../../protocol/utils.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const walletRuntime = getWalletRuntime()
 const { startDeltaSync, indexer } = useIndexer()
 
 const rootPost = ref(null)
@@ -112,7 +114,10 @@ function openReplyComposer() {
         </div>
       </div>
 
-      <div v-if="auth.isLoggedIn && rootPost" class="fixed bottom-24 right-5 z-40 sm:bottom-28">
+      <div
+        v-if="auth.isLoggedIn && rootPost && walletRuntime.canWriteBinaryTransactions.value"
+        class="fixed bottom-24 right-5 z-40 sm:bottom-28"
+      >
         <button
           type="button"
           class="nf-focus nf-press flex h-14 w-14 items-center justify-center rounded-full nq-blue-bg text-white shadow-lg ring-1 ring-black/10 hover:opacity-95"

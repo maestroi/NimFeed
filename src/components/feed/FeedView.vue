@@ -6,7 +6,6 @@ import { useAuthStore } from '../../stores/auth.js'
 import { useIndexer } from '../../indexer/useIndexer.js'
 import PostCard from './PostCard.vue'
 import PostSkeleton from './PostSkeleton.vue'
-import WalletButton from '../auth/WalletButton.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -58,12 +57,9 @@ function onCatalogUpdated() {
   <div class="pb-4">
     <header class="sticky top-0 z-20 border-b nf-divider bg-white/90 backdrop-blur">
       <div class="px-4 py-3 sm:px-6">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="nq-label !m-0 text-[var(--nf-muted)]">Nimiq Social</p>
-            <h1 class="nq-h2 !m-0 text-[var(--nf-text)]">NimFeed</h1>
-          </div>
-          <WalletButton />
+        <div>
+          <p class="nq-label !m-0 text-[var(--nf-muted)]">Nimiq Social</p>
+          <h1 class="nq-h2 !m-0 text-[var(--nf-text)]">NimFeed</h1>
         </div>
 
         <div class="mt-3 flex items-center gap-2">
