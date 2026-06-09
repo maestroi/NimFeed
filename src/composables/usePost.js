@@ -61,12 +61,23 @@ export function usePost() {
 
   async function sendPayload(recipient, payload) {
     if (walletRuntime.isNimiqPay.value) {
-      return walletRuntime.sendMiniAppTransaction({
+      const txHash = await walletRuntime.sendMiniAppTransaction({
         recipient,
         value: TX_VALUE_LUNA,
         fee: 0,
         extraData: payload,
       })
+      let tx = null
+      for (let attempt = 0; attempt < 5 && !tx?.from; attempt++) {
+        if (attempt) await new Promise((resolve) => setTimeout(resolve, 500))
+        tx = await rpc.getTransactionByHash(txHash)
+      }
+      if (!tx?.from) throw new Error('Post sent, but the signing account could not be resolved yet. Refresh shortly.')
+      if (!sameAddress(tx.from, auth.address)) {
+        auth.setAddress(tx.from)
+        await auth.loadProfile()
+      }
+      return { txHash, sender: tx.from }
     }
     const signed = await hub.signTransaction({
       sender: auth.address,
@@ -75,7 +86,8 @@ export function usePost() {
       fee: 0,
       extraData: payload,
     })
-    return rpc.sendRawTransaction(signed.serializedTx)
+    const txHash = await rpc.sendRawTransaction(signed.serializedTx)
+    return { txHash, sender: auth.address }
   }
 
   async function claimProfile(username, displayName) {
@@ -190,8 +202,9 @@ export function usePost() {
     const payload = buildPostInline(postIdBytes, text, replyOpts)
 
     const postIdHex = postIdToHex(postIdBytes)
+    const sent = await sendPayload(POST_CATALOG_ADDRESS, payload)
     await putPost({
-      author: auth.address,
+      author: sent.sender,
       post_id: postIdHex,
       tx_hash: null,
       block_height: 0,
@@ -209,9 +222,8 @@ export function usePost() {
       first_seen_at: 0,
     })
 
-    const txHash = await sendPayload(POST_CATALOG_ADDRESS, payload)
-    if (txHash) {
-      await updatePost(auth.address, postIdHex, { tx_hash: txHash })
+    if (sent.txHash) {
+      await updatePost(sent.sender, postIdHex, { tx_hash: sent.txHash })
     }
   }
 
@@ -232,10 +244,6 @@ export function usePost() {
 
       const postIdBytes = generatePostId()
       const postIdHex = postIdToHex(postIdBytes)
-      const authorBytes = nqToAddressBytes(auth.address)
-      const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
-      const derivedNq = addressBytesToNq(derivedBytes)
-
       const replyOpts = isReply
         ? {
             replyAuthor: nqToAddressBytes(replyToAuthor),
@@ -252,7 +260,8 @@ export function usePost() {
         text,
         postIdBytes,
         postIdHex,
-        derivedNq,
+        author: null,
+        derivedNq: null,
         chunks,
         compressed,
         contentHash,
@@ -281,9 +290,9 @@ export function usePost() {
         session.replyOpts,
       )
 
-      let startTxHash
+      let startSent
       try {
-        startTxHash = await sendPayload(POST_CATALOG_ADDRESS, startPayload)
+        startSent = await sendPayload(POST_CATALOG_ADDRESS, startPayload)
       } catch (err) {
         if (isPopupBlockedError(err)) {
           signingLabel.value = 'Popup blocked. Click Post to continue.'
@@ -292,8 +301,13 @@ export function usePost() {
         throw err
       }
 
+      session.author = startSent.sender
+      const authorBytes = nqToAddressBytes(session.author)
+      const derivedBytes = await derivePostAddress(authorBytes, session.postIdBytes)
+      session.derivedNq = addressBytesToNq(derivedBytes)
+
       await putPost({
-        author: auth.address,
+        author: session.author,
         post_id: session.postIdHex,
         tx_hash: null,
         block_height: 0,
@@ -311,8 +325,8 @@ export function usePost() {
         first_seen_at: 0,
       })
 
-      if (startTxHash) {
-        await updatePost(auth.address, session.postIdHex, { tx_hash: startTxHash })
+      if (startSent.txHash) {
+        await updatePost(session.author, session.postIdHex, { tx_hash: startSent.txHash })
       }
       session.startSubmitted = true
     }

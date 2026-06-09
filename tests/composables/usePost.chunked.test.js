@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     address: 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
     username: 'maestro',
     loadProfile: vi.fn(),
+    setAddress: vi.fn(),
   },
   signTransaction: vi.fn(),
   sendRawTransaction: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   assertBinaryTransactionsSupported: vi.fn(),
   isNimiqPay: { value: false },
   sendMiniAppTransaction: vi.fn(),
+  getTransactionByHash: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -31,6 +33,7 @@ vi.mock('../../src/chain/hub.js', () => ({
 vi.mock('../../src/chain/rpc.js', () => ({
   rpc: {
     sendRawTransaction: mocks.sendRawTransaction,
+    getTransactionByHash: mocks.getTransactionByHash,
   },
 }))
 
@@ -62,6 +65,9 @@ describe('usePost chunked popup recovery', () => {
     mocks.auth.address = 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD'
     mocks.auth.username = 'maestro'
     mocks.auth.loadProfile.mockReset().mockResolvedValue(undefined)
+    mocks.auth.setAddress.mockReset().mockImplementation((address) => {
+      mocks.auth.address = address
+    })
     mocks.signTransaction.mockReset()
     mocks.sendRawTransaction.mockReset().mockResolvedValue('txhash')
     mocks.startDeltaSync.mockReset().mockResolvedValue(undefined)
@@ -71,6 +77,9 @@ describe('usePost chunked popup recovery', () => {
     mocks.assertBinaryTransactionsSupported.mockReset()
     mocks.isNimiqPay.value = false
     mocks.sendMiniAppTransaction.mockReset().mockResolvedValue('pay-txhash')
+    mocks.getTransactionByHash.mockReset().mockResolvedValue({
+      from: 'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
+    })
   })
 
   it('resumes chunk signing after popup was blocked', async () => {
@@ -103,6 +112,7 @@ describe('usePost chunked popup recovery', () => {
     expect(mocks.sendMiniAppTransaction).toHaveBeenCalledTimes(1)
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
+    expect(mocks.auth.address).toBe('NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14')
   })
 
   it('uses smaller chunks for Nimiq Pay text transactions', async () => {
@@ -113,6 +123,11 @@ describe('usePost chunked popup recovery', () => {
 
     expect(mocks.sendMiniAppTransaction.mock.calls.length).toBeGreaterThan(1)
     expect(mocks.signTransaction).not.toHaveBeenCalled()
+    expect(mocks.putPost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        author: 'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
+      }),
+    )
   })
 
   it('blocks new chunked draft while another pending upload exists', async () => {

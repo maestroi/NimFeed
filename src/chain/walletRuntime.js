@@ -2,6 +2,9 @@ import { computed, shallowRef, ref } from 'vue'
 import { init } from '@nimiq/mini-app-sdk'
 import { useHub } from './hub.js'
 import { encodeMiniAppEnvelope } from '../protocol/miniAppEnvelope.js'
+import { blake2b } from '@noble/hashes/blake2.js'
+import { addressBytesToNq } from '../protocol/address.js'
+import { hexToBytes } from '../protocol/utils.js'
 
 export const BINARY_TRANSACTIONS_UNSUPPORTED =
   'Nimiq Pay cannot publish NimFeed posts yet because its provider does not support the required binary transaction data.'
@@ -11,10 +14,15 @@ function providerError(value) {
   return value.error?.message || 'Nimiq Pay provider request failed.'
 }
 
+async function defaultDerivePublicKeyAddress(publicKey) {
+  return addressBytesToNq(blake2b(hexToBytes(publicKey), { dkLen: 32 }).slice(0, 20))
+}
+
 export function createWalletRuntime({
   initMiniApp = init,
   hub = useHub(),
   timeout = 10_000,
+  derivePublicKeyAddress = defaultDerivePublicKeyAddress,
 } = {}) {
   const kind = ref('detecting')
   const provider = shallowRef(null)
@@ -48,6 +56,12 @@ export function createWalletRuntime({
       if (error) throw new Error(error)
       if (!Array.isArray(result) || !result.length) {
         throw new Error('No Nimiq Pay account was shared.')
+      }
+      if (typeof provider.value.sign === 'function') {
+        const signed = await provider.value.sign('Login to NimFeed')
+        const signError = providerError(signed)
+        if (signError) throw new Error(signError)
+        if (signed?.publicKey) return derivePublicKeyAddress(signed.publicKey)
       }
       return result[0]
     }

@@ -50,6 +50,23 @@ describe('wallet runtime', () => {
     expect(hub.signMessage).not.toHaveBeenCalled()
   })
 
+  it('uses the Nimiq Pay signing account as the connected identity', async () => {
+    const provider = {
+      listAccounts: vi.fn().mockResolvedValue(['NQ10 SHARED ACCOUNT']),
+      sign: vi.fn().mockResolvedValue({ publicKey: 'signed-public-key', signature: 'signature' }),
+    }
+    const derivePublicKeyAddress = vi.fn().mockResolvedValue('NQ11 SIGNING ACCOUNT')
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(provider),
+      hub,
+      derivePublicKeyAddress,
+    })
+
+    await expect(runtime.connect()).resolves.toBe('NQ11 SIGNING ACCOUNT')
+    expect(provider.sign).toHaveBeenCalledWith('Login to NimFeed')
+    expect(derivePublicKeyAddress).toHaveBeenCalledWith('signed-public-key')
+  })
+
   it('sends text-enveloped post transactions through Nimiq Pay', async () => {
     const provider = {
       sendBasicTransactionWithData: vi.fn().mockResolvedValue('pay-tx-hash'),

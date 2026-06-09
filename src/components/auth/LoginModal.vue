@@ -58,7 +58,7 @@ function closeModal() {
         <p class="text-gray-500 text-sm mb-6">
           {{
             walletRuntime.isNimiqPay.value
-              ? 'Share a Nimiq Pay account to use NimFeed. Publishing is currently read-only.'
+              ? 'Share and verify your active Nimiq Pay account to use NimFeed.'
               : 'Sign in with your Nimiq wallet via Hub.'
           }}
         </p>
