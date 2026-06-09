@@ -52,7 +52,7 @@ function openComposerFresh() {
         </button>
 
         <button
-          v-if="walletRuntime.canWriteBinaryTransactions.value"
+          v-if="walletRuntime.canPublishPosts.value"
           type="button"
           class="nf-focus nf-press mx-auto h-12 w-12 rounded-full nq-gold-bg text-white flex items-center justify-center shadow-lg shadow-[rgba(236,153,28,0.35)]"
           @click="openComposerFresh"

@@ -6,6 +6,7 @@ import { MAX_POST_CHARS } from '../../protocol/constants.js'
 import { useUiStore } from '../../stores/ui.js'
 import { storeToRefs } from 'pinia'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 
 const props = defineProps({
   /** When set, reply context comes from the prop (e.g. thread modal). Shape matches store fallback via {@link effectiveReply}. */
@@ -19,6 +20,7 @@ const emit = defineEmits(['submitted'])
 
 const auth = useAuthStore()
 const ui = useUiStore()
+const walletRuntime = getWalletRuntime()
 const { composerReplyTo } = storeToRefs(ui)
 const {
   submitPost,
@@ -151,6 +153,9 @@ function cancelPending() {
             </button>
           </div>
         </div>
+        <p v-if="walletRuntime.isNimiqPay.value" class="mt-2 text-xs text-[var(--nf-muted)]">
+          Nimiq Pay will ask you to approve each on-chain post transaction.
+        </p>
 
         <p v-if="signingActive" class="mt-2 text-xs text-[var(--nf-muted)]">
           <template v-if="popupBlocked">

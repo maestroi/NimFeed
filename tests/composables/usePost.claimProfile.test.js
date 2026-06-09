@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   startDeltaSync: vi.fn(),
   getWinningClaim: vi.fn(),
   assertBinaryTransactionsSupported: vi.fn(),
+  isNimiqPay: { value: false },
+  sendMiniAppTransaction: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -33,6 +35,8 @@ vi.mock('../../src/chain/rpc.js', () => ({
 vi.mock('../../src/chain/walletRuntime.js', () => ({
   getWalletRuntime: () => ({
     assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
+    isNimiqPay: mocks.isNimiqPay,
+    sendMiniAppTransaction: mocks.sendMiniAppTransaction,
   }),
 }))
 
@@ -62,6 +66,8 @@ describe('usePost.claimProfile', () => {
     mocks.startDeltaSync.mockReset().mockResolvedValue(undefined)
     mocks.getWinningClaim.mockReset().mockResolvedValue(null)
     mocks.assertBinaryTransactionsSupported.mockReset()
+    mocks.isNimiqPay.value = false
+    mocks.sendMiniAppTransaction.mockReset()
   })
 
   it('rejects when user is not logged in', async () => {

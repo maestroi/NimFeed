@@ -50,6 +50,50 @@ describe('wallet runtime', () => {
     expect(hub.signMessage).not.toHaveBeenCalled()
   })
 
+  it('sends text-enveloped post transactions through Nimiq Pay', async () => {
+    const provider = {
+      sendBasicTransactionWithData: vi.fn().mockResolvedValue('pay-tx-hash'),
+    }
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(provider),
+      hub,
+    })
+
+    const hash = await runtime.sendMiniAppTransaction({
+      recipient: 'NQ00 RECIPIENT',
+      value: 1,
+      fee: 0,
+      extraData: new Uint8Array([0x4e, 0x46, 0x01, 0x02, 0x01]),
+    })
+
+    expect(hash).toBe('pay-tx-hash')
+    expect(provider.sendBasicTransactionWithData).toHaveBeenCalledWith({
+      recipient: 'NQ00 RECIPIENT',
+      value: 1,
+      fee: 0,
+      data: 'NFH:4e46010201',
+    })
+  })
+
+  it('normalizes Nimiq Pay transaction errors', async () => {
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue({
+        sendBasicTransactionWithData: vi.fn().mockResolvedValue({
+          error: { message: 'Transaction rejected' },
+        }),
+      }),
+      hub,
+    })
+
+    await expect(
+      runtime.sendMiniAppTransaction({
+        recipient: 'NQ00 RECIPIENT',
+        value: 1,
+        extraData: new Uint8Array([0x4e, 0x46, 0x01, 0x02]),
+      }),
+    ).rejects.toThrow('Transaction rejected')
+  })
+
   it('does not proxy injected providers that use private fields', async () => {
     class PrivateProvider {
       #accounts = ['NQ00 PRIVATE ACCOUNT']

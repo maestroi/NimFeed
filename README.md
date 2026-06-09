@@ -103,14 +103,13 @@ Environment variables consumed by the app:
 
 ### Current Nimiq Pay limitation
 
-NimFeed's on-chain protocol uses exact binary transaction data. The current
-Nimiq Pay provider documents `sendBasicTransactionWithData()` with text data,
-so publishing profiles, posts, replies, follows, and unfollows is disabled
-inside Nimiq Pay to avoid presenting actions that cannot complete. Account
-connection, reading, indexing, and navigation work normally.
+NimFeed's original on-chain protocol uses binary transaction data. Nimiq Pay
+posts use an ASCII `NFH:` envelope that carries the same protocol bytes through
+`sendBasicTransactionWithData()`. Long posts use smaller chunks to stay within
+the text transaction data limit.
 
-Nimiq Pay hides publishing, reply, and follow controls while this limitation
-applies.
+Profile claims, replies, follows, and unfollows remain unavailable inside Nimiq
+Pay until their larger metadata formats receive equivalent text-safe encodings.
 
 Normal browsers retain full write support through Nimiq Hub.
 

@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   putPost: vi.fn(),
   updatePost: vi.fn(),
   assertBinaryTransactionsSupported: vi.fn(),
+  isNimiqPay: { value: false },
+  sendMiniAppTransaction: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -35,6 +37,8 @@ vi.mock('../../src/chain/rpc.js', () => ({
 vi.mock('../../src/chain/walletRuntime.js', () => ({
   getWalletRuntime: () => ({
     assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
+    isNimiqPay: mocks.isNimiqPay,
+    sendMiniAppTransaction: mocks.sendMiniAppTransaction,
   }),
 }))
 
@@ -65,6 +69,8 @@ describe('usePost chunked popup recovery', () => {
     mocks.putPost.mockReset().mockResolvedValue(undefined)
     mocks.updatePost.mockReset().mockResolvedValue(undefined)
     mocks.assertBinaryTransactionsSupported.mockReset()
+    mocks.isNimiqPay.value = false
+    mocks.sendMiniAppTransaction.mockReset().mockResolvedValue('pay-txhash')
   })
 
   it('resumes chunk signing after popup was blocked', async () => {
@@ -90,15 +96,23 @@ describe('usePost chunked popup recovery', () => {
     expect(mocks.startDeltaSync).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects a post before signing when binary transactions are unavailable', async () => {
-    mocks.assertBinaryTransactionsSupported.mockImplementation(() => {
-      throw new Error('Binary writes unavailable')
-    })
-
+  it('posts through the native Nimiq Pay provider', async () => {
+    mocks.isNimiqPay.value = true
     const { submitPost } = usePost()
-    await expect(submitPost('Hello from Nimiq Pay')).rejects.toThrow('Binary writes unavailable')
+    await expect(submitPost('Hello Pay')).resolves.toBeUndefined()
+    expect(mocks.sendMiniAppTransaction).toHaveBeenCalledTimes(1)
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
+  })
+
+  it('uses smaller chunks for Nimiq Pay text transactions', async () => {
+    mocks.isNimiqPay.value = true
+    const { submitPost } = usePost()
+
+    await expect(submitPost('This post exceeds seventeen bytes.')).resolves.toBeUndefined()
+
+    expect(mocks.sendMiniAppTransaction.mock.calls.length).toBeGreaterThan(1)
+    expect(mocks.signTransaction).not.toHaveBeenCalled()
   })
 
   it('blocks new chunked draft while another pending upload exists', async () => {

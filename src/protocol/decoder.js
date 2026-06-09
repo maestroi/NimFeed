@@ -1,11 +1,13 @@
 import { TYPES, VERSION } from './constants.js'
 import { hexToBytes, trimNulls, postIdToHex } from './utils.js'
 import { addressBytesToNq, canonicalNqAddress } from './address.js'
+import { decodeMiniAppEnvelopeHex } from './miniAppEnvelope.js'
 
 const MAGIC_HEX = '4e46'
 
 export function parseTransaction(tx) {
-  const hex = (tx.data ?? '').toLowerCase().replace(/^0x/, '')
+  const chainHex = (tx.data ?? '').toLowerCase().replace(/^0x/, '')
+  const hex = decodeMiniAppEnvelopeHex(chainHex) ?? chainHex
   if (!hex || hex.length < 8) return null
   if (hex.slice(0, 4) !== MAGIC_HEX) return null
 

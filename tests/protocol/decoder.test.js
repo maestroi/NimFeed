@@ -3,6 +3,7 @@ import { parseTransaction } from '../../src/protocol/decoder.js'
 import { buildProfileClaim, buildPostInline, buildPostStart, buildPostChunk } from '../../src/protocol/encoder.js'
 import { bytesToHex } from '../../src/protocol/utils.js'
 import { POST_CATALOG_ADDRESS } from '../../src/protocol/constants.js'
+import { encodeMiniAppEnvelope } from '../../src/protocol/miniAppEnvelope.js'
 
 function mockTx(payload, to = POST_CATALOG_ADDRESS) {
   return {
@@ -38,6 +39,15 @@ describe('parseTransaction', () => {
     expect(ev.event).toBe('POST_INLINE')
     expect(ev.text).toBe('hello world')
     expect(ev.isReply).toBe(false)
+  })
+
+  it('parses a text-enveloped mini app post', () => {
+    const payload = buildPostInline(new Uint8Array(8).fill(1), 'hello pay')
+    const tx = mockTx(new TextEncoder().encode(encodeMiniAppEnvelope(payload)))
+    const ev = parseTransaction(tx)
+
+    expect(ev.event).toBe('POST_INLINE')
+    expect(ev.text).toBe('hello pay')
   })
 
   it('parses POST_START', () => {

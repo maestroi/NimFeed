@@ -1,6 +1,7 @@
 import { computed, shallowRef, ref } from 'vue'
 import { init } from '@nimiq/mini-app-sdk'
 import { useHub } from './hub.js'
+import { encodeMiniAppEnvelope } from '../protocol/miniAppEnvelope.js'
 
 export const BINARY_TRANSACTIONS_UNSUPPORTED =
   'Nimiq Pay cannot publish NimFeed posts yet because its provider does not support the required binary transaction data.'
@@ -21,6 +22,7 @@ export function createWalletRuntime({
 
   const isNimiqPay = computed(() => kind.value === 'nimiq-pay')
   const canConnect = computed(() => true)
+  const canPublishPosts = computed(() => kind.value !== 'detecting')
   const canWriteBinaryTransactions = computed(() => kind.value === 'browser')
 
   async function initialize() {
@@ -54,6 +56,24 @@ export function createWalletRuntime({
     return signed.signer
   }
 
+  async function sendMiniAppTransaction({ recipient, value, fee = 0, extraData, validityStartHeight }) {
+    await initialize()
+    if (kind.value !== 'nimiq-pay') {
+      throw new Error('Nimiq Pay transaction provider is unavailable.')
+    }
+    const request = {
+      recipient,
+      value,
+      fee,
+      data: encodeMiniAppEnvelope(extraData),
+    }
+    if (validityStartHeight !== undefined) request.validityStartHeight = validityStartHeight
+    const result = await provider.value.sendBasicTransactionWithData(request)
+    const error = providerError(result)
+    if (error) throw new Error(error)
+    return result
+  }
+
   function assertBinaryTransactionsSupported() {
     if (kind.value === 'detecting') {
       throw new Error('Wallet runtime is still initializing. Please try again.')
@@ -67,9 +87,11 @@ export function createWalletRuntime({
     kind,
     isNimiqPay,
     canConnect,
+    canPublishPosts,
     canWriteBinaryTransactions,
     initialize,
     connect,
+    sendMiniAppTransaction,
     assertBinaryTransactionsSupported,
   }
 }

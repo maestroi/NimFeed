@@ -22,6 +22,7 @@ import {
 } from '../protocol/constants.js'
 import { getWinningClaim, putPost, updatePost } from '../db/queries.js'
 import { useIndexer } from '../indexer/useIndexer.js'
+import { MINI_APP_CHUNK_DATA_SIZE, MINI_APP_INLINE_DATA_SIZE } from '../protocol/miniAppEnvelope.js'
 
 function sameAddress(a, b) {
   return String(a || '').replace(/\s+/g, '').toUpperCase() === String(b || '').replace(/\s+/g, '').toUpperCase()
@@ -58,6 +59,25 @@ export function usePost() {
     })
   }
 
+  async function sendPayload(recipient, payload) {
+    if (walletRuntime.isNimiqPay.value) {
+      return walletRuntime.sendMiniAppTransaction({
+        recipient,
+        value: TX_VALUE_LUNA,
+        fee: 0,
+        extraData: payload,
+      })
+    }
+    const signed = await hub.signTransaction({
+      sender: auth.address,
+      recipient,
+      value: TX_VALUE_LUNA,
+      fee: 0,
+      extraData: payload,
+    })
+    return rpc.sendRawTransaction(signed.serializedTx)
+  }
+
   async function claimProfile(username, displayName) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
     walletRuntime.assertBinaryTransactionsSupported()
@@ -88,15 +108,22 @@ export function usePost() {
 
   function txCount(text, isReply) {
     const raw = new TextEncoder().encode(text)
-    const limit = isReply ? INLINE_MAX_WITH_REPLY : INLINE_MAX_NO_REPLY
+    const limit = walletRuntime.isNimiqPay.value
+      ? MINI_APP_INLINE_DATA_SIZE
+      : isReply
+        ? INLINE_MAX_WITH_REPLY
+        : INLINE_MAX_NO_REPLY
     if (raw.length <= limit) return 1
-    const chunks = Math.ceil(raw.length / 50) + 1
+    const chunkSize = walletRuntime.isNimiqPay.value ? MINI_APP_CHUNK_DATA_SIZE : 50
+    const chunks = Math.ceil(raw.length / chunkSize) + 1
     return 1 + chunks
   }
 
   async function submitPost(text, { replyToAuthor = null, replyToPostId = null } = {}) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
-    walletRuntime.assertBinaryTransactionsSupported()
+    if (walletRuntime.isNimiqPay.value && replyToAuthor && replyToPostId) {
+      throw new Error('Replies are not supported in Nimiq Pay yet.')
+    }
     if (!text?.trim()) throw new Error('Post text is empty')
     if (text.length > MAX_POST_CHARS) throw new Error(`Post exceeds ${MAX_POST_CHARS} chars`)
     if (sending.value) return
@@ -110,7 +137,11 @@ export function usePost() {
     try {
       const raw = new TextEncoder().encode(text)
       const isReply = !!(replyToAuthor && replyToPostId)
-      const limit = isReply ? INLINE_MAX_WITH_REPLY : INLINE_MAX_NO_REPLY
+      const limit = walletRuntime.isNimiqPay.value
+        ? MINI_APP_INLINE_DATA_SIZE
+        : isReply
+          ? INLINE_MAX_WITH_REPLY
+          : INLINE_MAX_NO_REPLY
       const key = sessionKey(text, replyToAuthor, replyToPostId)
 
       if (pendingChunkSession.value && pendingChunkSession.value.key !== key) {
@@ -178,14 +209,7 @@ export function usePost() {
       first_seen_at: 0,
     })
 
-    const signed = await hub.signTransaction({
-      sender: auth.address,
-      recipient: POST_CATALOG_ADDRESS,
-      value: TX_VALUE_LUNA,
-      fee: 0,
-      extraData: payload,
-    })
-    const txHash = await rpc.sendRawTransaction(signed.serializedTx)
+    const txHash = await sendPayload(POST_CATALOG_ADDRESS, payload)
     if (txHash) {
       await updatePost(auth.address, postIdHex, { tx_hash: txHash })
     }
@@ -200,7 +224,11 @@ export function usePost() {
 
       const digest = await crypto.subtle.digest('SHA-256', payload)
       const contentHash = new Uint8Array(digest).slice(0, 8)
-      const chunks = splitInto50ByteChunks(payload)
+      const chunks = walletRuntime.isNimiqPay.value
+        ? Array.from({ length: Math.ceil(payload.length / MINI_APP_CHUNK_DATA_SIZE) }, (_, i) =>
+            payload.slice(i * MINI_APP_CHUNK_DATA_SIZE, (i + 1) * MINI_APP_CHUNK_DATA_SIZE),
+          )
+        : splitInto50ByteChunks(payload)
 
       const postIdBytes = generatePostId()
       const postIdHex = postIdToHex(postIdBytes)
@@ -253,15 +281,9 @@ export function usePost() {
         session.replyOpts,
       )
 
-      let startSigned
+      let startTxHash
       try {
-        startSigned = await hub.signTransaction({
-          sender: auth.address,
-          recipient: POST_CATALOG_ADDRESS,
-          value: TX_VALUE_LUNA,
-          fee: 0,
-          extraData: startPayload,
-        })
+        startTxHash = await sendPayload(POST_CATALOG_ADDRESS, startPayload)
       } catch (err) {
         if (isPopupBlockedError(err)) {
           signingLabel.value = 'Popup blocked. Click Post to continue.'
@@ -289,7 +311,6 @@ export function usePost() {
         first_seen_at: 0,
       })
 
-      const startTxHash = await rpc.sendRawTransaction(startSigned.serializedTx)
       if (startTxHash) {
         await updatePost(auth.address, session.postIdHex, { tx_hash: startTxHash })
       }
@@ -300,15 +321,8 @@ export function usePost() {
       signingStep.value = i + 2
       signingLabel.value = `POST_CHUNK ${i + 1}/${session.chunks.length}`
       const chunkPayload = buildPostChunk(session.postIdBytes, i, session.chunks[i])
-      let signed
       try {
-        signed = await hub.signTransaction({
-          sender: auth.address,
-          recipient: session.derivedNq,
-          value: TX_VALUE_LUNA,
-          fee: 0,
-          extraData: chunkPayload,
-        })
+        await sendPayload(session.derivedNq, chunkPayload)
       } catch (err) {
         if (isPopupBlockedError(err)) {
           session.nextChunkIndex = i
@@ -317,7 +331,6 @@ export function usePost() {
         }
         throw err
       }
-      await rpc.sendRawTransaction(signed.serializedTx)
       session.nextChunkIndex = i + 1
     }
 
