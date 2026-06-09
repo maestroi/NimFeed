@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getWinningClaim: vi.fn(),
   putPost: vi.fn(),
   updatePost: vi.fn(),
+  assertBinaryTransactionsSupported: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -29,6 +30,12 @@ vi.mock('../../src/chain/rpc.js', () => ({
   rpc: {
     sendRawTransaction: mocks.sendRawTransaction,
   },
+}))
+
+vi.mock('../../src/chain/walletRuntime.js', () => ({
+  getWalletRuntime: () => ({
+    assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
+  }),
 }))
 
 vi.mock('../../src/indexer/useIndexer.js', () => ({
@@ -57,6 +64,7 @@ describe('usePost chunked popup recovery', () => {
     mocks.getWinningClaim.mockReset().mockResolvedValue(null)
     mocks.putPost.mockReset().mockResolvedValue(undefined)
     mocks.updatePost.mockReset().mockResolvedValue(undefined)
+    mocks.assertBinaryTransactionsSupported.mockReset()
   })
 
   it('resumes chunk signing after popup was blocked', async () => {
@@ -80,6 +88,17 @@ describe('usePost chunked popup recovery', () => {
     expect(mocks.putPost).toHaveBeenCalledTimes(1) // no duplicate start row
     expect(mocks.sendRawTransaction.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(mocks.startDeltaSync).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a post before signing when binary transactions are unavailable', async () => {
+    mocks.assertBinaryTransactionsSupported.mockImplementation(() => {
+      throw new Error('Binary writes unavailable')
+    })
+
+    const { submitPost } = usePost()
+    await expect(submitPost('Hello from Nimiq Pay')).rejects.toThrow('Binary writes unavailable')
+    expect(mocks.signTransaction).not.toHaveBeenCalled()
+    expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
   })
 
   it('blocks new chunked draft while another pending upload exists', async () => {

@@ -6,6 +6,7 @@ import PostComposer from '../post/PostComposer.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useHub } from '../../chain/hub.js'
+import { initializeWalletRuntime } from '../../chain/walletRuntime.js'
 import { provideIndexer } from '../../indexer/useIndexer.js'
 import { rpc } from '../../chain/rpc.js'
 import { getDefaultRpcEndpoint, resolveRpcEndpoint } from '../../chain/rpcSettings.js'
@@ -35,6 +36,7 @@ onMounted(() => {
   const defaultRpc = getDefaultRpcEndpoint(network)
   const activeRpc = resolveRpcEndpoint(network)
   rpc.setEndpoint(activeRpc)
+  initializeWalletRuntime().catch(() => {})
   hub.warmup()
   if (import.meta.env.DEV) {
     console.info('[NimFeed config]', {

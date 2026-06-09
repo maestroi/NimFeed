@@ -8,7 +8,8 @@ NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile cl
 
 ## What it does
 
-- Connects a wallet through **Nimiq Hub**.
+- Connects through **Nimiq Pay** when opened as a mini app, with **Nimiq Hub**
+  fallback in normal browsers.
 - Claims usernames (`PROFILE_CLAIM`) with earliest-claim-wins resolution.
 - Publishes posts as:
   - `POST_INLINE` for short text
@@ -22,6 +23,7 @@ NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile cl
 - Vue 3 + Vue Router + Pinia
 - Dexie (IndexedDB)
 - `@nimiq/hub-api` (wallet signing)
+- `@nimiq/mini-app-sdk` (Nimiq Pay detection and account access)
 - Vite + Tailwind CSS
 - Vitest + happy-dom + fake-indexeddb
 
@@ -55,6 +57,14 @@ Then run:
 npm run dev
 ```
 
+To test from Nimiq Pay on a phone connected to the same network:
+
+```bash
+npm run dev -- --host
+```
+
+Open the displayed network URL from Nimiq Pay's Mini Apps custom URL field.
+
 ## Available scripts
 
 - `npm run dev` - start Vite dev server
@@ -81,11 +91,31 @@ Environment variables consumed by the app:
 
 ## High-level architecture
 
-1. User signs transactions in Hub popup (private keys never sent to RPC).
-2. App sends signed tx hex to RPC (`sendRawTransaction`).
-3. Browser indexer syncs catalog/follow addresses from RPC.
-4. Decoder/handlers persist events to IndexedDB (`catalog_refs`, `posts`, `users`, `follows`, etc.).
-5. Feed/profile composables render timelines from local DB.
+1. NimFeed initializes the Mini App SDK to detect a usable injected Nimiq Pay
+   provider. If initialization fails or times out, it uses the browser Hub flow.
+2. Nimiq Pay users share an account through the native provider; browser users
+   connect by signing a Hub login message.
+3. User signs transactions in Hub popup (private keys never sent to RPC).
+4. App sends signed tx hex to RPC (`sendRawTransaction`).
+5. Browser indexer syncs catalog/follow addresses from RPC.
+6. Decoder/handlers persist events to IndexedDB (`catalog_refs`, `posts`, `users`, `follows`, etc.).
+7. Feed/profile composables render timelines from local DB.
+
+### Current Nimiq Pay limitation
+
+NimFeed's on-chain protocol uses exact binary transaction data. The current
+Nimiq Pay provider documents `sendBasicTransactionWithData()` with text data,
+so publishing profiles, posts, replies, follows, and unfollows is disabled
+inside Nimiq Pay to avoid corrupting protocol payloads. Reading, indexing,
+navigation, and account connection work normally.
+
+Normal browsers retain full write support through Nimiq Hub.
+
+Once deployed, the mini app can be opened with:
+
+```text
+nimiqpay://miniapp?url=https://maestroi.github.io/NimFeed/
+```
 
 Core folders:
 

@@ -3,11 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
 
 const auth = useAuthStore()
 const ui = useUiStore()
 const router = useRouter()
+const walletRuntime = getWalletRuntime()
 const open = ref(false)
 const root = ref(null)
 
@@ -58,7 +60,7 @@ onBeforeUnmount(() => {
     class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700"
     @click="ui.loginModalOpen = true"
   >
-    Connect Wallet
+    {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect Wallet' }}
   </button>
   <div v-else ref="root" class="relative">
     <button

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   sendRawTransaction: vi.fn(),
   startDeltaSync: vi.fn(),
   getWinningClaim: vi.fn(),
+  assertBinaryTransactionsSupported: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -27,6 +28,12 @@ vi.mock('../../src/chain/rpc.js', () => ({
   rpc: {
     sendRawTransaction: mocks.sendRawTransaction,
   },
+}))
+
+vi.mock('../../src/chain/walletRuntime.js', () => ({
+  getWalletRuntime: () => ({
+    assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
+  }),
 }))
 
 vi.mock('../../src/indexer/useIndexer.js', () => ({
@@ -54,6 +61,7 @@ describe('usePost.claimProfile', () => {
     mocks.sendRawTransaction.mockReset().mockResolvedValue('txhash1')
     mocks.startDeltaSync.mockReset().mockResolvedValue(undefined)
     mocks.getWinningClaim.mockReset().mockResolvedValue(null)
+    mocks.assertBinaryTransactionsSupported.mockReset()
   })
 
   it('rejects when user is not logged in', async () => {
@@ -71,6 +79,17 @@ describe('usePost.claimProfile', () => {
 
     const { claimProfile } = usePost()
     await expect(claimProfile('maestro', 'Maestro')).rejects.toThrow('@maestro is already taken.')
+    expect(mocks.signTransaction).not.toHaveBeenCalled()
+    expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects before signing when binary transactions are unavailable', async () => {
+    mocks.assertBinaryTransactionsSupported.mockImplementation(() => {
+      throw new Error('Binary writes unavailable')
+    })
+
+    const { claimProfile } = usePost()
+    await expect(claimProfile('maestro', 'Maestro')).rejects.toThrow('Binary writes unavailable')
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
   })

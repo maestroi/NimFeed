@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useHub } from '../chain/hub.js'
+import { getWalletRuntime } from '../chain/walletRuntime.js'
 import { rpc } from '../chain/rpc.js'
 import {
   buildProfileClaim,
@@ -29,6 +30,7 @@ function sameAddress(a, b) {
 export function usePost() {
   const auth = useAuthStore()
   const hub = useHub()
+  const walletRuntime = getWalletRuntime()
   const { startDeltaSync } = useIndexer()
   const sending = ref(false)
   const error = ref(null)
@@ -58,6 +60,7 @@ export function usePost() {
 
   async function claimProfile(username, displayName) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
+    walletRuntime.assertBinaryTransactionsSupported()
     const currentWinner = await getWinningClaim(username)
     if (currentWinner?.address && !sameAddress(currentWinner.address, auth.address)) {
       throw new Error(`@${username} is already taken.`)
@@ -93,6 +96,7 @@ export function usePost() {
 
   async function submitPost(text, { replyToAuthor = null, replyToPostId = null } = {}) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
+    walletRuntime.assertBinaryTransactionsSupported()
     if (!text?.trim()) throw new Error('Post text is empty')
     if (text.length > MAX_POST_CHARS) throw new Error(`Post exceeds ${MAX_POST_CHARS} chars`)
     if (sending.value) return

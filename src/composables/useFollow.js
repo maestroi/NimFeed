@@ -1,5 +1,6 @@
 import { ref, watch, onMounted } from 'vue'
 import { useHub } from '../chain/hub.js'
+import { getWalletRuntime } from '../chain/walletRuntime.js'
 import { rpc } from '../chain/rpc.js'
 import { buildFollow, buildUnfollow } from '../protocol/encoder.js'
 import { nqToAddressBytes } from '../protocol/utils.js'
@@ -11,6 +12,7 @@ import { useIndexer } from '../indexer/useIndexer.js'
 export function useFollow(targetAddress) {
   const auth = useAuthStore()
   const hub = useHub()
+  const walletRuntime = getWalletRuntime()
   const { startDeltaSync } = useIndexer()
   const active = ref(false)
   const counts = ref({ following: 0, followers: 0 })
@@ -28,6 +30,7 @@ export function useFollow(targetAddress) {
 
   async function sendFollowTx(isFollow) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
+    walletRuntime.assertBinaryTransactionsSupported()
     const addr = typeof targetAddress === 'object' ? targetAddress.value : targetAddress
     const targetBytes = nqToAddressBytes(addr)
     const payload = isFollow ? buildFollow(targetBytes) : buildUnfollow(targetBytes)

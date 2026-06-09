@@ -2,14 +2,14 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth.js'
 import { useUiStore } from '../../stores/ui.js'
-import { useHub } from '../../chain/hub.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import { useIndexer } from '../../indexer/useIndexer.js'
 import { getUser } from '../../db/queries.js'
 import OnboardingFlow from './OnboardingFlow.vue'
 
 const auth = useAuthStore()
 const ui = useUiStore()
-const hub = useHub()
+const walletRuntime = getWalletRuntime()
 const { startDeltaSync } = useIndexer()
 const error = ref(null)
 const step = ref('idle')
@@ -18,15 +18,14 @@ async function connect() {
   error.value = null
   step.value = 'connecting'
   try {
-    const result = await hub.signMessage('Login to NimFeed', auth.address ?? undefined)
-    const address = result.signer
+    const address = await walletRuntime.connect(auth.address ?? undefined)
 
     auth.setAddress(address)
 
     await startDeltaSync()
 
     const user = await getUser(address)
-    if (!user?.username) {
+    if (!user?.username && walletRuntime.canWriteBinaryTransactions.value) {
       step.value = 'onboarding'
     } else {
       await auth.loadProfile()
@@ -55,17 +54,25 @@ function closeModal() {
       <h2 class="text-xl font-bold mb-4">Connect to NimFeed</h2>
 
       <div v-if="step === 'idle'">
-        <p class="text-gray-500 text-sm mb-6">Sign in with your Nimiq wallet via Hub.</p>
+        <p class="text-gray-500 text-sm mb-6">
+          {{
+            walletRuntime.isNimiqPay.value
+              ? 'Share a Nimiq Pay account to use NimFeed.'
+              : 'Sign in with your Nimiq wallet via Hub.'
+          }}
+        </p>
         <button
           class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700"
           @click="connect"
         >
-          Connect with Nimiq Hub
+          {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect with Nimiq Hub' }}
         </button>
         <p v-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
       </div>
 
-      <div v-else-if="step === 'connecting'" class="text-center py-4 text-gray-500">Waiting for Hub…</div>
+      <div v-else-if="step === 'connecting'" class="text-center py-4 text-gray-500">
+        {{ walletRuntime.isNimiqPay.value ? 'Waiting for Nimiq Pay…' : 'Waiting for Hub…' }}
+      </div>
 
       <div v-else-if="step === 'onboarding'">
         <OnboardingFlow @done="onOnboardingDone" />
