@@ -109,6 +109,38 @@ describe('IndexerService.syncDerivedAddress', () => {
     expect(updated).toBe(true)
   })
 
+  it('retries derived sync for posts previously marked missing_chunks', async () => {
+    await db.posts.put({
+      author: 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
+      post_id: postIdToHex(new Uint8Array([8, 7, 6, 5, 4, 3, 2, 1])),
+      tx_hash: 'start-tx',
+      block_height: 100,
+      tx_index: 0,
+      content: null,
+      total_chunks: 2,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: '0011223344556677',
+      is_inline: false,
+      is_reply: false,
+      reply_to_author: null,
+      reply_to_post_id: null,
+      status: 'missing_chunks',
+      first_seen_at: 100,
+    })
+
+    const rpc = {
+      getTransactionsByAddress: vi.fn().mockResolvedValue([]),
+      normalizeTransaction: (raw) => raw,
+    }
+    const svc = new IndexerService(rpc)
+    const derivedSpy = vi.spyOn(svc, 'syncDerivedAddress').mockResolvedValue(undefined)
+
+    await svc.startDeltaSync()
+
+    expect(derivedSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('repairs stale duplicate username owners during delta sync', async () => {
     await db.profile_claims.put({
       username: 'alice',

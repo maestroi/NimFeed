@@ -5,7 +5,7 @@ export function shellClasses(isNimiqPay) {
       page: 'relative nf-page h-full w-full overflow-hidden',
       nav: 'absolute bottom-0 inset-x-0 z-40',
       navInner: 'border-t border-[var(--nf-border)] bg-white px-2 py-2',
-      navGrid: 'grid grid-cols-3 items-center gap-2',
+      navGrid: 'grid grid-cols-4 items-center gap-1',
     }
   }
 

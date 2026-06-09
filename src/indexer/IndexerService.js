@@ -67,10 +67,13 @@ export class IndexerService extends EventTarget {
     await reconcileUsernameOwnership()
     await this.syncFollowCatalog()
 
-    const pending = await db.posts.where('status').equals('pending').toArray()
+    const pending = await db.posts.where('status').anyOf('pending', 'missing_chunks').toArray()
     const derivedTargets = new Set()
     for (const post of pending) {
       try {
+        if (post.status === 'missing_chunks') {
+          await db.posts.update([post.author, post.post_id], { status: 'pending' })
+        }
         const authorBytes = nqToAddressBytes(post.author)
         const postIdBytes = hexToPostIdBytes(post.post_id)
         const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
