@@ -20,7 +20,7 @@ export function createWalletRuntime({
   let initialization = null
 
   const isNimiqPay = computed(() => kind.value === 'nimiq-pay')
-  const canConnect = computed(() => kind.value !== 'nimiq-pay')
+  const canConnect = computed(() => true)
   const canWriteBinaryTransactions = computed(() => kind.value === 'browser')
 
   async function initialize() {

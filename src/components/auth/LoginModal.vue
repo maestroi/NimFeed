@@ -58,7 +58,7 @@ function closeModal() {
         <p class="text-gray-500 text-sm mb-6">
           {{
             walletRuntime.isNimiqPay.value
-              ? 'NimFeed is currently read-only inside Nimiq Pay.'
+              ? 'Share a Nimiq Pay account to use NimFeed. Publishing is currently read-only.'
               : 'Sign in with your Nimiq wallet via Hub.'
           }}
         </p>
@@ -67,7 +67,7 @@ function closeModal() {
           :disabled="!walletRuntime.canConnect.value"
           @click="connect"
         >
-          {{ walletRuntime.isNimiqPay.value ? 'Read-only in Nimiq Pay' : 'Connect with Nimiq Hub' }}
+          {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect with Nimiq Hub' }}
         </button>
         <p v-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
       </div>

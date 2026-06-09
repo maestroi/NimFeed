@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
     :disabled="!walletRuntime.canConnect.value"
     @click="ui.loginModalOpen = true"
   >
-    {{ walletRuntime.isNimiqPay.value ? 'Read-only in Nimiq Pay' : 'Connect Wallet' }}
+    {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect Wallet' }}
   </button>
   <div v-else ref="root" class="relative">
     <button

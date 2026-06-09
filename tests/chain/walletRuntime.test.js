@@ -106,7 +106,7 @@ describe('wallet runtime', () => {
     )
   })
 
-  it('marks connection unavailable inside Nimiq Pay', async () => {
+  it('allows account connection inside Nimiq Pay', async () => {
     const runtime = createWalletRuntime({
       initMiniApp: vi.fn().mockResolvedValue({ listAccounts: vi.fn() }),
       hub,
@@ -114,7 +114,7 @@ describe('wallet runtime', () => {
 
     await runtime.initialize()
 
-    expect(runtime.canConnect.value).toBe(false)
+    expect(runtime.canConnect.value).toBe(true)
   })
 
   it('rejects binary protocol writes while runtime detection is pending', () => {

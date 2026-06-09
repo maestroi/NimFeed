@@ -93,8 +93,8 @@ Environment variables consumed by the app:
 
 1. NimFeed initializes the Mini App SDK to detect a usable injected Nimiq Pay
    provider. If initialization fails or times out, it uses the browser Hub flow.
-2. Nimiq Pay runs in read-only mode; browser users connect by signing a Hub
-   login message.
+2. Nimiq Pay users share an account through the native provider; browser users
+   connect by signing a Hub login message.
 3. User signs transactions in Hub popup (private keys never sent to RPC).
 4. App sends signed tx hex to RPC (`sendRawTransaction`).
 5. Browser indexer syncs catalog/follow addresses from RPC.
@@ -105,9 +105,9 @@ Environment variables consumed by the app:
 
 NimFeed's on-chain protocol uses exact binary transaction data. The current
 Nimiq Pay provider documents `sendBasicTransactionWithData()` with text data,
-so connecting and publishing profiles, posts, replies, follows, and unfollows
-are disabled inside Nimiq Pay to avoid presenting actions that cannot complete.
-Reading, indexing, and navigation work normally.
+so publishing profiles, posts, replies, follows, and unfollows is disabled
+inside Nimiq Pay to avoid presenting actions that cannot complete. Account
+connection, reading, indexing, and navigation work normally.
 
 Normal browsers retain full write support through Nimiq Hub.
 
