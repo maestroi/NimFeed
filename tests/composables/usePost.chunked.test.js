@@ -130,6 +130,21 @@ describe('usePost chunked popup recovery', () => {
     )
   })
 
+  it('posts long text when the Nimiq Pay WebView has no SubtleCrypto', async () => {
+    mocks.isNimiqPay.value = true
+    const originalCrypto = globalThis.crypto
+    vi.stubGlobal('crypto', {
+      getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+    })
+
+    try {
+      const { submitPost } = usePost()
+      await expect(submitPost('This post exceeds seventeen bytes.')).resolves.toBeUndefined()
+    } finally {
+      vi.stubGlobal('crypto', originalCrypto)
+    }
+  })
+
   it('blocks new chunked draft while another pending upload exists', async () => {
     const popupErr = new Error('Failed to open popup')
     mocks.signTransaction

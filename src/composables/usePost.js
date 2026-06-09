@@ -13,6 +13,7 @@ import {
 import { generatePostId, postIdToHex, hexToPostIdBytes } from '../protocol/utils.js'
 import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../protocol/address.js'
 import { deflateRaw, shouldCompress } from '../protocol/compression.js'
+import { sha256Bytes } from '../protocol/hash.js'
 import {
   POST_CATALOG_ADDRESS,
   TX_VALUE_LUNA,
@@ -234,8 +235,7 @@ export function usePost() {
       const payload = shouldCompress(raw, comp) ? comp : raw
       const compressed = payload === comp
 
-      const digest = await crypto.subtle.digest('SHA-256', payload)
-      const contentHash = new Uint8Array(digest).slice(0, 8)
+      const contentHash = sha256Bytes(payload).slice(0, 8)
       const chunks = walletRuntime.isNimiqPay.value
         ? Array.from({ length: Math.ceil(payload.length / MINI_APP_CHUNK_DATA_SIZE) }, (_, i) =>
             payload.slice(i * MINI_APP_CHUNK_DATA_SIZE, (i + 1) * MINI_APP_CHUNK_DATA_SIZE),

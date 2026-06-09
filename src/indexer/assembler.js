@@ -1,5 +1,6 @@
 import { db } from '../db/schema.js'
 import { inflateRaw } from '../protocol/compression.js'
+import { sha256Bytes } from '../protocol/hash.js'
 import { hexToBytes } from '../protocol/utils.js'
 
 export async function tryAssemble(author, postId) {
@@ -37,8 +38,7 @@ export async function tryAssemble(author, postId) {
     offset += len
   }
 
-  const digest = await crypto.subtle.digest('SHA-256', encoded)
-  const hash8 = new Uint8Array(digest).slice(0, 8)
+  const hash8 = sha256Bytes(encoded).slice(0, 8)
   const expected = hexToBytes(post.content_hash)
 
   if (!bytesEqual(hash8, expected)) {

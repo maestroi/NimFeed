@@ -1,3 +1,5 @@
+import { sha256Bytes } from './hash.js'
+
 export function isCompressionSupported() {
   try {
     new CompressionStream('deflate-raw')
@@ -32,8 +34,7 @@ export async function encodePost(text) {
   const compressed = comp.length < raw.length
   const payload = compressed ? comp : raw
 
-  const digest = await crypto.subtle.digest('SHA-256', payload)
-  const contentHash = new Uint8Array(digest).slice(0, 8)
+  const contentHash = sha256Bytes(payload).slice(0, 8)
 
   const chunks = []
   for (let i = 0; i < payload.length; i += 50) {

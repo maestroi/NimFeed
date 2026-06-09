@@ -1,4 +1,6 @@
 // Nimiq NQ address: custom base32 alphabet + checksum (phase 1 plan).
+import { sha256Bytes } from './hash.js'
+
 const NQ_ALPHABET = '0123456789ABCDEFGHJKLMNPQRSTUVXY'
 const NQ_PREFIX = 'NQ'
 
@@ -128,6 +130,5 @@ export async function derivePostAddress(authorAddressBytes20, postIdBytes8) {
   seed.set(authorAddressBytes20, 0)
   seed.set(postIdBytes8, 20)
   seed.set(salt, 28)
-  const hash = await crypto.subtle.digest('SHA-256', seed)
-  return new Uint8Array(hash).slice(0, 20)
+  return sha256Bytes(seed).slice(0, 20)
 }
