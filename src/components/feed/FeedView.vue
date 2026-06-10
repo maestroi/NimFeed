@@ -29,6 +29,17 @@ const pullIndicatorRef = ref(null)
 const pullArrowRef = ref(null)
 const pullLabelRef = ref(null)
 const pullContentRef = ref(null)
+const syncDetailsOpen = ref(false)
+const syncStatus = ref({
+  phase: 'syncing',
+  error: null,
+  rpcEndpoint: '',
+  postCatalog: '',
+  catalogFullySynced: false,
+  postCount: 0,
+  refCount: 0,
+  lastSyncedAt: null,
+})
 
 let scrollEl = null
 let touchStartY = 0
@@ -44,6 +55,19 @@ function current() {
 const feedLoading = computed(() =>
   ui.activeTab === 'following' ? followingLoading.value : globalLoading.value,
 )
+const syncStatusLabel = computed(() => {
+  if (syncStatus.value.phase === 'error') return 'Sync failed · Retry'
+  if (syncStatus.value.phase === 'syncing') return 'Syncing history…'
+  return 'Up to date'
+})
+const syncStatusClass = computed(() => {
+  if (syncStatus.value.phase === 'error') return 'border-rose-200 bg-rose-50 text-rose-700'
+  if (syncStatus.value.phase === 'syncing') {
+    return 'border-amber-200 bg-amber-50 text-amber-700'
+  }
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+})
+const showSyncBar = computed(() => syncStatus.value.phase === 'syncing' || syncStatus.value.phase === 'error')
 
 function isAtScrollTop() {
   return scrollEl && scrollEl.scrollTop <= 2
@@ -141,9 +165,27 @@ function onTouchEnd() {
   void onPullRelease()
 }
 
+function onSyncStatus(event) {
+  syncStatus.value = event.detail
+}
+
+async function loadSyncStatus() {
+  syncStatus.value = await indexer.getPublicSyncStatus()
+}
+
+function handleSyncStatusClick() {
+  syncDetailsOpen.value = !syncDetailsOpen.value
+}
+
+function retrySync() {
+  void current().refresh()
+}
+
 onMounted(() => {
+  void loadSyncStatus()
   current().refresh()
   indexer.addEventListener('catalog:updated', onCatalogUpdated)
+  indexer.addEventListener('sync:status', onSyncStatus)
   scrollEl = rootRef.value?.closest('main') ?? null
   if (scrollEl) {
     const capture = { capture: true }
@@ -157,6 +199,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (pullRafId) cancelAnimationFrame(pullRafId)
   indexer.removeEventListener('catalog:updated', onCatalogUpdated)
+  indexer.removeEventListener('sync:status', onSyncStatus)
   if (scrollEl) {
     const capture = { capture: true }
     scrollEl.removeEventListener('touchstart', onTouchStart, capture)
@@ -232,33 +275,52 @@ function onCatalogUpdated() {
           >
             Following
           </button>
-          <button
-            type="button"
-            class="nf-focus ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--nf-primary)] hover:text-[var(--nf-primary-strong)] disabled:opacity-70"
-            :disabled="feedLoading"
-            :aria-busy="feedLoading"
-            @click="current().refresh()"
-          >
-            <svg
-              v-if="feedLoading"
-              viewBox="0 0 24 24"
-              class="h-3.5 w-3.5 animate-spin"
-              aria-hidden="true"
+          <div class="ml-auto flex flex-col items-end gap-1">
+            <button
+              v-if="!showSyncBar"
+              type="button"
+              class="nf-focus rounded-full p-0.5 text-emerald-600 hover:text-emerald-700"
+              :class="syncDetailsOpen ? 'opacity-100' : 'opacity-70'"
+              title="Up to date"
+              aria-label="Up to date"
+              @click="handleSyncStatusClick"
             >
-              <circle
-                cx="12"
-                cy="12"
-                r="9"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-dasharray="42"
-                stroke-dashoffset="12"
-              />
-            </svg>
-            {{ feedLoading ? 'Refreshing…' : 'Refresh' }}
-          </button>
+              <svg viewBox="0 0 20 20" class="h-3.5 w-3.5 fill-current" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-3.5-3.5a1 1 0 1 1 1.4-1.4L8.5 12l6.8-6.8a1 1 0 0 1 1.4 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="nf-focus nf-press inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--nf-primary)] hover:text-[var(--nf-primary-strong)] disabled:opacity-70"
+              :disabled="feedLoading"
+              :aria-busy="feedLoading"
+              @click="current().refresh()"
+            >
+              <svg
+                v-if="feedLoading"
+                viewBox="0 0 24 24"
+                class="h-3.5 w-3.5 animate-spin"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-dasharray="42"
+                  stroke-dashoffset="12"
+                />
+              </svg>
+              {{ feedLoading ? 'Refreshing…' : 'Refresh' }}
+            </button>
+          </div>
         </div>
 
         <div class="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
@@ -288,6 +350,61 @@ function onCatalogUpdated() {
             </svg>
             Stake with AceStaking
           </a>
+        </div>
+
+        <button
+          v-if="showSyncBar"
+          type="button"
+          class="nf-focus mt-2 flex min-h-11 w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold"
+          :class="syncStatusClass"
+          :aria-expanded="syncDetailsOpen"
+          @click="handleSyncStatusClick"
+        >
+          <svg
+            v-if="syncStatus.phase === 'syncing'"
+            viewBox="0 0 24 24"
+            class="h-4 w-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-dasharray="42"
+              stroke-dashoffset="12"
+            />
+          </svg>
+          <span
+            v-else
+            class="h-2.5 w-2.5 shrink-0 rounded-full bg-current"
+            aria-hidden="true"
+          />
+          <span>{{ syncStatusLabel }}</span>
+          <span class="ml-auto font-normal opacity-80">{{ syncStatus.postCount }} posts indexed</span>
+        </button>
+
+        <div
+          v-if="syncDetailsOpen"
+          class="mt-2 space-y-1.5 rounded-xl border border-[var(--nf-border)] bg-[var(--nf-soft)] p-3 text-[11px] text-[var(--nf-muted)]"
+        >
+          <p class="font-semibold text-[var(--nf-text)]">Public sync details</p>
+          <p>History: {{ syncStatus.catalogFullySynced ? 'fully indexed' : 'still backfilling' }}</p>
+          <p>Local data: {{ syncStatus.postCount }} posts · {{ syncStatus.refCount }} references</p>
+          <p class="break-all">RPC: {{ syncStatus.rpcEndpoint }}</p>
+          <p class="break-all">Catalog: {{ syncStatus.postCatalog }}</p>
+          <p v-if="syncStatus.error" class="text-rose-700">Error: {{ syncStatus.error }}</p>
+          <button
+            v-if="syncStatus.phase === 'error'"
+            type="button"
+            class="nf-focus mt-2 min-h-11 rounded-full nq-blue-bg px-4 py-2 text-xs font-semibold text-white"
+            @click="retrySync"
+          >
+            Retry sync
+          </button>
         </div>
       </div>
     </header>

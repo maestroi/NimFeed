@@ -29,6 +29,41 @@ export class IndexerService extends EventTarget {
     super()
     this.rpc = rpc
     this._deltaInterval = null
+    this._deltaSyncPromise = null
+    this._syncPhase = 'idle'
+    this._syncError = null
+  }
+
+  async getPublicSyncStatus() {
+    const [postState, postCount, refCount] = await Promise.all([
+      getSyncState('post_catalog'),
+      db.posts.count(),
+      db.catalog_refs.count(),
+    ])
+    const catalogFullySynced = !!postState?.fully_synced
+    return {
+      phase:
+        this._syncPhase === 'error'
+          ? 'error'
+          : this._syncPhase === 'syncing' || !catalogFullySynced
+            ? 'syncing'
+            : 'ready',
+      error: this._syncError,
+      rpcEndpoint: this.rpc.url,
+      postCatalog: POST_CATALOG_ADDRESS,
+      catalogFullySynced,
+      postCount,
+      refCount,
+      lastSyncedAt: postState?.last_synced_at ?? null,
+    }
+  }
+
+  async _publishSyncStatus(phase, error = null) {
+    this._syncPhase = phase
+    this._syncError = error
+    const detail = await this.getPublicSyncStatus()
+    this.dispatchEvent(new CustomEvent('sync:status', { detail }))
+    return detail
   }
 
   async syncPostCatalog() {
@@ -60,47 +95,63 @@ export class IndexerService extends EventTarget {
     return undefined
   }
 
-  async startDeltaSync() {
+  startDeltaSync() {
+    if (this._deltaSyncPromise) return this._deltaSyncPromise
+    const active = this._runDeltaSync().finally(() => {
+      if (this._deltaSyncPromise === active) this._deltaSyncPromise = null
+    })
+    this._deltaSyncPromise = active
+    return active
+  }
+
+  async _runDeltaSync() {
     const t0 = performance.now()
     debug('startDeltaSync:start')
-    await this.syncPostCatalog()
-    await reconcileUsernameOwnership()
-    await this.syncFollowCatalog()
+    await this._publishSyncStatus('syncing')
+    try {
+      await this.syncPostCatalog()
+      await reconcileUsernameOwnership()
+      await this.syncFollowCatalog()
 
-    const pending = await db.posts.where('status').anyOf('pending', 'missing_chunks').toArray()
-    const derivedTargets = new Set()
-    for (const post of pending) {
-      try {
-        if (post.status === 'missing_chunks') {
-          await db.posts.update([post.author, post.post_id], { status: 'pending' })
+      const pending = await db.posts.where('status').anyOf('pending', 'missing_chunks').toArray()
+      const derivedTargets = new Set()
+      for (const post of pending) {
+        try {
+          if (post.status === 'missing_chunks') {
+            await db.posts.update([post.author, post.post_id], { status: 'pending' })
+          }
+          const authorBytes = nqToAddressBytes(post.author)
+          const postIdBytes = hexToPostIdBytes(post.post_id)
+          const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
+          const derivedNq = addressBytesToNq(derivedBytes)
+          if (post.status === 'missing_chunks') {
+            await db.sync_state.delete(`derived:${normalizeNq(derivedNq)}`)
+          }
+          derivedTargets.add(derivedNq)
+        } catch {
+          /* ignore malformed post keys */
         }
-        const authorBytes = nqToAddressBytes(post.author)
-        const postIdBytes = hexToPostIdBytes(post.post_id)
-        const derivedBytes = await derivePostAddress(authorBytes, postIdBytes)
-        const derivedNq = addressBytesToNq(derivedBytes)
-        if (post.status === 'missing_chunks') {
-          await db.sync_state.delete(`derived:${normalizeNq(derivedNq)}`)
+      }
+
+      for (const derivedNq of derivedTargets) {
+        try {
+          await this.syncDerivedAddress(derivedNq)
+        } catch {
+          /* ignore transient derived scope failures */
         }
-        derivedTargets.add(derivedNq)
-      } catch {
-        /* ignore malformed post keys */
       }
-    }
 
-    for (const derivedNq of derivedTargets) {
-      try {
-        await this.syncDerivedAddress(derivedNq)
-      } catch {
-        /* ignore transient derived scope failures */
-      }
+      debug('startDeltaSync:done', {
+        pendingPosts: pending.length,
+        derivedScopes: derivedTargets.size,
+        ms: Math.round(performance.now() - t0),
+      })
+      this.dispatchEvent(new CustomEvent('catalog:updated'))
+      await this._publishSyncStatus('ready')
+    } catch (err) {
+      await this._publishSyncStatus('error', err?.message ?? String(err))
+      throw err
     }
-
-    debug('startDeltaSync:done', {
-      pendingPosts: pending.length,
-      derivedScopes: derivedTargets.size,
-      ms: Math.round(performance.now() - t0),
-    })
-    this.dispatchEvent(new CustomEvent('catalog:updated'))
   }
 
   startDeltaSyncLoop(intervalMs = 60_000) {
@@ -178,6 +229,7 @@ export class IndexerService extends EventTarget {
       state.oldest_synced_cursor = page[page.length - 1].hash
       await putSyncState(state)
       this.dispatchEvent(new CustomEvent('updated', { detail: { address } }))
+      if (scopeKey === 'post_catalog') await this._publishSyncStatus('syncing')
 
       if (page.length < SYNC_PAGE_SIZE) {
         state.fully_synced = true

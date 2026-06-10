@@ -202,4 +202,66 @@ describe('IndexerService.syncDerivedAddress', () => {
     expect(winner?.display_name).toBe('Alice Winner')
     expect(loser?.username ?? null).toBeNull()
   })
+
+  it('exposes public sync state and emits status changes', async () => {
+    const rpc = {
+      url: 'https://rpc.example',
+      getTransactionsByAddress: vi.fn().mockResolvedValue([]),
+      normalizeTransaction: (raw) => raw,
+    }
+    const svc = new IndexerService(rpc)
+    const statuses = []
+    svc.addEventListener('sync:status', (event) => statuses.push(event.detail))
+
+    await svc.startDeltaSync()
+    const status = await svc.getPublicSyncStatus()
+
+    expect(status).toMatchObject({
+      phase: 'ready',
+      rpcEndpoint: 'https://rpc.example',
+      catalogFullySynced: true,
+      postCount: 0,
+      refCount: 0,
+    })
+    expect(statuses[0].phase).toBe('syncing')
+    expect(statuses.at(-1).phase).toBe('ready')
+  })
+
+  it('exposes sync failures for retry UI', async () => {
+    const rpc = {
+      url: 'https://rpc.example',
+      getTransactionsByAddress: vi.fn().mockRejectedValue(new Error('RPC unavailable')),
+      normalizeTransaction: (raw) => raw,
+    }
+    const svc = new IndexerService(rpc)
+    const statuses = []
+    svc.addEventListener('sync:status', (event) => statuses.push(event.detail))
+
+    await expect(svc.startDeltaSync()).rejects.toThrow('RPC unavailable')
+
+    expect(statuses.at(-1)).toMatchObject({ phase: 'error', error: 'RPC unavailable' })
+  })
+
+  it('shares one active delta sync between simultaneous callers', async () => {
+    let releaseFirstRequest
+    const firstRequest = new Promise((resolve) => {
+      releaseFirstRequest = resolve
+    })
+    const rpc = {
+      url: 'https://rpc.example',
+      getTransactionsByAddress: vi.fn().mockReturnValueOnce(firstRequest).mockResolvedValue([]),
+      normalizeTransaction: (raw) => raw,
+    }
+    const svc = new IndexerService(rpc)
+
+    const first = svc.startDeltaSync()
+    const second = svc.startDeltaSync()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(rpc.getTransactionsByAddress).toHaveBeenCalledTimes(1)
+
+    releaseFirstRequest([])
+    await Promise.all([first, second])
+    expect(rpc.getTransactionsByAddress).toHaveBeenCalledTimes(4)
+  })
 })
