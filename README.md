@@ -16,6 +16,9 @@ NimFeed is a Vue 3 + IndexedDB social client for Nimiq that publishes profile cl
   - `POST_START` + `POST_CHUNK` for larger payloads
 - Supports follow/unfollow events and a following timeline.
 - Shows thread/reply context.
+- Lets users tip post authors with NIM (plain value transfer), with a
+  wallet-balance check before sending.
+- Feed loads more posts automatically via infinite scroll.
 - Links each post to explorer block/transaction pages.
 
 ## Tech stack
@@ -108,8 +111,9 @@ posts use an ASCII `NFH:` envelope that carries the same protocol bytes through
 `sendBasicTransactionWithData()`. Long posts use smaller chunks to stay within
 the text transaction data limit.
 
-Profile claims, replies, follows, and unfollows remain unavailable inside Nimiq
-Pay until their larger metadata formats receive equivalent text-safe encodings.
+Follows, unfollows, and tips work inside Nimiq Pay as plain/enveloped value
+transfers. Profile claims and replies remain unavailable inside Nimiq Pay
+until their larger metadata formats receive equivalent text-safe encodings.
 
 Normal browsers retain full write support through Nimiq Hub.
 
