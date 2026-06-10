@@ -5,6 +5,7 @@ import { useProfile } from '../../composables/useProfile.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { usePost } from '../../composables/usePost.js'
 import { db } from '../../db/schema.js'
+import { clearLocalDatabase } from '../../db/queries.js'
 import { rpc } from '../../chain/rpc.js'
 import {
   getDefaultRpcEndpoint,
@@ -47,6 +48,7 @@ const showDebug = ref(false)
 const showRpcSettings = ref(false)
 const menuOpen = ref(false)
 const debugLoading = ref(false)
+const resettingIndex = ref(false)
 const debugData = ref(null)
 const debugLogsEnabled = ref(isDebugLogsEnabled())
 const defaultRpcEndpoint = getDefaultRpcEndpoint()
@@ -127,6 +129,24 @@ async function toggleDebugFromMenu() {
 function toggleRpcFromMenu() {
   menuOpen.value = false
   showRpcSettings.value = !showRpcSettings.value
+}
+
+async function resetLocalIndex() {
+  menuOpen.value = false
+  if (
+    !window.confirm(
+      'This clears all locally cached posts, profiles, and sync progress, then re-syncs from the chain. Continue?',
+    )
+  ) {
+    return
+  }
+  resettingIndex.value = true
+  try {
+    await clearLocalDatabase()
+    window.location.reload()
+  } catch {
+    resettingIndex.value = false
+  }
 }
 
 function toggleDebugLogs() {
@@ -225,6 +245,15 @@ onBeforeUnmount(() => {
               @click="toggleRpcFromMenu"
             >
               {{ showRpcSettings ? 'Hide custom RPC' : 'Custom RPC' }}
+            </button>
+            <button
+              v-if="isSelf"
+              type="button"
+              class="nf-focus block w-full rounded-md px-2 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50"
+              :disabled="resettingIndex"
+              @click="resetLocalIndex"
+            >
+              {{ resettingIndex ? 'Resetting…' : 'Reset local index' }}
             </button>
           </div>
         </div>

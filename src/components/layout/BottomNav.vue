@@ -4,6 +4,7 @@ import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import { shellClasses } from '../../chain/miniAppLayout.js'
+import AddressIdenticon from '../common/AddressIdenticon.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -68,7 +69,12 @@ function openComposerFresh() {
           class="nf-focus nf-press rounded-xl py-2 flex flex-col items-center gap-1"
           @click="auth.isLoggedIn ? router.push(`/profile/${auth.address}`) : (ui.loginModalOpen = true)"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <AddressIdenticon
+            v-if="auth.isLoggedIn"
+            :address="auth.address"
+            :img-class="`h-5 w-5 ring-2 ${route.path.startsWith('/profile') ? 'ring-[var(--nf-primary)]' : 'ring-transparent'}`"
+          />
+          <svg v-else class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="12" cy="8" r="4" />
             <path d="M4 20c1.2-4 4.2-6 8-6s6.8 2 8 6" />
           </svg>

@@ -239,13 +239,13 @@ const cardClass = computed(() => [
 
         <div
           v-if="!post._skeleton"
-          class="mt-3 flex items-center gap-5 text-sm text-[var(--nf-muted)]"
+          class="mt-3 flex items-center gap-2"
           @click.stop
         >
           <button
             v-if="walletRuntime.canPublishPosts.value"
             type="button"
-            class="nf-focus font-semibold hover:text-[var(--nf-primary)]"
+            class="nf-focus nq-button-s light-blue"
             @click="onReply"
           >
             Reply
@@ -253,7 +253,7 @@ const cardClass = computed(() => [
           <button
             v-if="!isSelf && walletRuntime.canPublishPosts.value"
             type="button"
-            class="nf-focus font-semibold hover:text-[var(--nf-primary)]"
+            class="nf-focus nq-button-s green"
             @click="onTip"
           >
             Tip

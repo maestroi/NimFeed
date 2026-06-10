@@ -192,6 +192,13 @@ export async function getCatalogRefsBySender(sender, types) {
 
 export const getCatalogRef = (txHash) => db.catalog_refs.get(txHash)
 
+/** Clears all locally cached data so the next sync rebuilds the index from the chain. */
+export async function clearLocalDatabase() {
+  await db.transaction('rw', db.tables, async () => {
+    await Promise.all(db.tables.map((table) => table.clear()))
+  })
+}
+
 // Sync state — primary key scope_key
 export const getSyncState = (scopeKey) => db.sync_state.get(scopeKey)
 export const putSyncState = (state) => db.sync_state.put(state)
