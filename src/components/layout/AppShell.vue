@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted } from 'vue'
 import BottomNav from './BottomNav.vue'
 import LoginModal from '../auth/LoginModal.vue'
 import PostComposer from '../post/PostComposer.vue'
+import TipModal from '../post/TipModal.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useHub } from '../../chain/hub.js'
@@ -72,6 +73,7 @@ onBeforeUnmount(() => {
       </main>
       <BottomNav />
       <LoginModal />
+      <TipModal />
 
       <div
         v-if="ui.composerOpen"

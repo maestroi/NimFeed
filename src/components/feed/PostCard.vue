@@ -73,6 +73,18 @@ function onReply(e) {
   ui.composerOpen = true
 }
 
+function onTip(e) {
+  e.stopPropagation()
+  if (!auth.isLoggedIn) {
+    ui.loginModalOpen = true
+    return
+  }
+  if (props.post._skeleton) return
+  ui.tipTarget = { address: props.post.author, label: authorLabel.value }
+}
+
+const isSelf = computed(() => auth.address === props.post.author)
+
 const showContent = computed(
   () =>
     props.post.status === 'complete' ||
@@ -231,12 +243,20 @@ const cardClass = computed(() => [
           @click.stop
         >
           <button
-            v-if="walletRuntime.canWriteBinaryTransactions.value"
+            v-if="walletRuntime.canPublishPosts.value"
             type="button"
             class="nf-focus font-semibold hover:text-[var(--nf-primary)]"
             @click="onReply"
           >
             Reply
+          </button>
+          <button
+            v-if="!isSelf && walletRuntime.canPublishPosts.value"
+            type="button"
+            class="nf-focus font-semibold hover:text-[var(--nf-primary)]"
+            @click="onTip"
+          >
+            Tip
           </button>
         </div>
       </div>

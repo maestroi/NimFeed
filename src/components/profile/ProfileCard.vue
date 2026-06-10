@@ -91,7 +91,7 @@ function handleFollowClick() {
             Edit profile
           </button>
           <button
-            v-if="!isSelf && walletRuntime.canWriteBinaryTransactions.value"
+            v-if="!isSelf && walletRuntime.canPublishPosts.value"
             type="button"
             :disabled="pending"
             :class="[

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   isNimiqPay: { value: false },
   sendMiniAppTransaction: vi.fn(),
   getTransactionByHash: vi.fn(),
+  custodialAddress: { value: null },
+  rememberSigningAddress: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -42,6 +44,8 @@ vi.mock('../../src/chain/walletRuntime.js', () => ({
     assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
     isNimiqPay: mocks.isNimiqPay,
     sendMiniAppTransaction: mocks.sendMiniAppTransaction,
+    custodialAddress: mocks.custodialAddress,
+    rememberSigningAddress: mocks.rememberSigningAddress,
   }),
 }))
 
@@ -76,6 +80,8 @@ describe('usePost chunked popup recovery', () => {
     mocks.updatePost.mockReset().mockResolvedValue(undefined)
     mocks.assertBinaryTransactionsSupported.mockReset()
     mocks.isNimiqPay.value = false
+    mocks.custodialAddress.value = 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD'
+    mocks.rememberSigningAddress.mockReset()
     mocks.sendMiniAppTransaction.mockReset().mockResolvedValue('pay-txhash')
     mocks.getTransactionByHash.mockReset().mockResolvedValue({
       from: 'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
@@ -113,6 +119,10 @@ describe('usePost chunked popup recovery', () => {
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
     expect(mocks.auth.address).toBe('NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14')
+    expect(mocks.rememberSigningAddress).toHaveBeenCalledWith(
+      'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
+      'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
+    )
   })
 
   it('uses smaller chunks for Nimiq Pay text transactions', async () => {

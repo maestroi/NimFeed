@@ -6,6 +6,8 @@ export const useUiStore = defineStore('ui', () => {
   const composerOpen = ref(false)
   /** @type {import('vue').Ref<{ author: string, post_id: string } | null>} */
   const composerReplyTo = ref(null)
+  /** @type {import('vue').Ref<{ address: string, label: string|null } | null>} */
+  const tipTarget = ref(null)
   const filterNoClaim = ref(true)
   const filterMinAgBlocks = ref(10)
   const activeTab = ref('global')
@@ -14,6 +16,7 @@ export const useUiStore = defineStore('ui', () => {
     loginModalOpen,
     composerOpen,
     composerReplyTo,
+    tipTarget,
     filterNoClaim,
     filterMinAgBlocks,
     activeTab,

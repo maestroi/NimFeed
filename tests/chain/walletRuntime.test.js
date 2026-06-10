@@ -3,6 +3,9 @@ import {
   BINARY_TRANSACTIONS_UNSUPPORTED,
   createWalletRuntime,
 } from '../../src/chain/walletRuntime.js'
+import { canonicalNqAddress } from '../../src/protocol/address.js'
+
+const SIGNING_MAP_KEY = 'nimfeed_pay_signing_map'
 
 describe('wallet runtime', () => {
   let hub
@@ -67,6 +70,44 @@ describe('wallet runtime', () => {
     expect(derivePublicKeyAddress).toHaveBeenCalledWith('signed-public-key')
   })
 
+  it('exposes the custodial Nimiq Pay account so callers can key a signing-address cache', async () => {
+    const provider = {
+      listAccounts: vi.fn().mockResolvedValue(['NQ10 SHARED ACCOUNT']),
+    }
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(provider),
+      hub,
+    })
+
+    await runtime.connect()
+
+    expect(runtime.custodialAddress.value).toBe('NQ10 SHARED ACCOUNT')
+  })
+
+  it('prefers a previously learned signing address over the address derived from sign()', async () => {
+    const custodial = 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD'
+    const learnedSigner = 'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14'
+    localStorage.setItem(
+      SIGNING_MAP_KEY,
+      JSON.stringify({ [canonicalNqAddress(custodial)]: canonicalNqAddress(learnedSigner) }),
+    )
+
+    const provider = {
+      listAccounts: vi.fn().mockResolvedValue([custodial]),
+      sign: vi.fn().mockResolvedValue({ publicKey: '00'.repeat(32), signature: 'signature' }),
+    }
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(provider),
+      hub,
+    })
+
+    try {
+      await expect(runtime.connect()).resolves.toBe(canonicalNqAddress(learnedSigner))
+    } finally {
+      localStorage.removeItem(SIGNING_MAP_KEY)
+    }
+  })
+
   it('sends text-enveloped post transactions through Nimiq Pay', async () => {
     const provider = {
       sendBasicTransactionWithData: vi.fn().mockResolvedValue('pay-tx-hash'),
@@ -89,6 +130,29 @@ describe('wallet runtime', () => {
       value: 1,
       fee: 0,
       data: 'NFH:4e46010201',
+    })
+  })
+
+  it('sends plain value transactions through Nimiq Pay without a data envelope', async () => {
+    const provider = {
+      sendBasicTransactionWithData: vi.fn().mockResolvedValue('pay-tx-hash'),
+    }
+    const runtime = createWalletRuntime({
+      initMiniApp: vi.fn().mockResolvedValue(provider),
+      hub,
+    })
+
+    const hash = await runtime.sendMiniAppTransaction({
+      recipient: 'NQ00 RECIPIENT',
+      value: 500000,
+      fee: 0,
+    })
+
+    expect(hash).toBe('pay-tx-hash')
+    expect(provider.sendBasicTransactionWithData).toHaveBeenCalledWith({
+      recipient: 'NQ00 RECIPIENT',
+      value: 500000,
+      fee: 0,
     })
   })
 

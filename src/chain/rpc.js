@@ -69,6 +69,11 @@ export class NimiqRPC {
     return txs.map((tx) => this.normalizeTransaction(tx))
   }
 
+  async getAccountByAddress(address) {
+    const result = this.unwrapData(await this.call('getAccountByAddress', [address]))
+    return result ?? null
+  }
+
   async getTransactionByHash(hash) {
     const result = this.unwrapData(await this.call('getTransactionByHash', [hash]))
     if (!result) return null

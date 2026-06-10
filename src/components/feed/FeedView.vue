@@ -4,11 +4,13 @@ import { useFeed } from '../../composables/useFeed.js'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useIndexer } from '../../indexer/useIndexer.js'
+import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import PostCard from './PostCard.vue'
 import PostSkeleton from './PostSkeleton.vue'
 
 const ui = useUiStore()
 const auth = useAuthStore()
+const walletRuntime = getWalletRuntime()
 const { indexer } = useIndexer()
 const tipHeight = ref(0)
 const telegramBotUrl = 'https://t.me/nimiq_notifier_bot'
@@ -25,6 +27,8 @@ const followingLoading = followingFeed.loading
 const followingHasMore = followingFeed.hasMore
 
 const rootRef = ref(null)
+const sentinelRef = ref(null)
+const loadingMoreLock = ref(false)
 const pullIndicatorRef = ref(null)
 const pullArrowRef = ref(null)
 const pullLabelRef = ref(null)
@@ -42,6 +46,7 @@ const syncStatus = ref({
 })
 
 let scrollEl = null
+let loadMoreObserver = null
 let touchStartY = 0
 let touchActive = false
 let currentPull = 0
@@ -194,10 +199,20 @@ onMounted(() => {
     scrollEl.addEventListener('touchend', onTouchEnd, capture)
     scrollEl.addEventListener('touchcancel', onTouchEnd, capture)
   }
+
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void maybeLoadMore()
+    },
+    { root: scrollEl, rootMargin: '0px 0px 400px 0px' },
+  )
+  observeSentinel(sentinelRef.value)
 })
 
 onBeforeUnmount(() => {
   if (pullRafId) cancelAnimationFrame(pullRafId)
+  loadMoreObserver?.disconnect()
+  loadMoreObserver = null
   indexer.removeEventListener('catalog:updated', onCatalogUpdated)
   indexer.removeEventListener('sync:status', onSyncStatus)
   if (scrollEl) {
@@ -220,6 +235,27 @@ watch(
 function onCatalogUpdated() {
   current().reload()
 }
+
+async function maybeLoadMore() {
+  const feed = current()
+  if (!feed.hasMore.value || feed.loading.value || loadingMoreLock.value) return
+  loadingMoreLock.value = true
+  try {
+    await feed.loadPage()
+  } finally {
+    loadingMoreLock.value = false
+  }
+}
+
+function observeSentinel(el) {
+  if (!loadMoreObserver) return
+  if (el) loadMoreObserver.observe(el)
+}
+
+watch(sentinelRef, (el, oldEl) => {
+  if (oldEl && loadMoreObserver) loadMoreObserver.unobserve(oldEl)
+  observeSentinel(el)
+})
 </script>
 
 <template>
@@ -323,7 +359,7 @@ function onCatalogUpdated() {
           </div>
         </div>
 
-        <div class="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
+        <div v-if="!walletRuntime.isNimiqPay.value" class="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5">
           <a
             :href="telegramBotUrl"
             target="_blank"
@@ -442,15 +478,8 @@ function onCatalogUpdated() {
             <PostCard v-else :post="post" :tip-height="tipHeight" />
           </template>
         </div>
-        <div v-if="globalHasMore" class="px-4 py-5 text-center sm:px-6">
-          <button
-            type="button"
-            class="nf-focus nf-press rounded-full border border-[var(--nf-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--nf-primary)] disabled:opacity-50"
-            :disabled="globalLoading"
-            @click="globalFeed.loadPage"
-          >
-            {{ globalLoading ? 'Loading…' : 'Load more posts' }}
-          </button>
+        <div v-if="globalHasMore" ref="sentinelRef" class="px-4 py-5 text-center text-sm text-[var(--nf-muted)] sm:px-6">
+          {{ globalLoading ? 'Loading…' : '' }}
         </div>
         <div v-else class="px-4 py-8 text-center text-sm text-[var(--nf-muted)]">You reached the first indexed posts.</div>
       </template>
@@ -473,15 +502,8 @@ function onCatalogUpdated() {
             <PostCard v-else :post="post" :tip-height="tipHeight" />
           </template>
         </div>
-        <div v-if="followingHasMore" class="px-4 py-5 text-center sm:px-6">
-          <button
-            type="button"
-            class="nf-focus nf-press rounded-full border border-[var(--nf-border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--nf-primary)] disabled:opacity-50"
-            :disabled="followingLoading"
-            @click="followingFeed.loadPage"
-          >
-            {{ followingLoading ? 'Loading…' : 'Load more posts' }}
-          </button>
+        <div v-if="followingHasMore" ref="sentinelRef" class="px-4 py-5 text-center text-sm text-[var(--nf-muted)] sm:px-6">
+          {{ followingLoading ? 'Loading…' : '' }}
         </div>
       </template>
     </template>

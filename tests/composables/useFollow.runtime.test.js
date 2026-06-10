@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   signTransaction: vi.fn(),
   sendRawTransaction: vi.fn(),
   startDeltaSync: vi.fn(),
+  isNimiqPay: { value: false },
+  sendMiniAppTransaction: vi.fn(),
 }))
 
 vi.mock('../../src/stores/auth.js', () => ({
@@ -17,6 +19,8 @@ vi.mock('../../src/stores/auth.js', () => ({
 vi.mock('../../src/chain/walletRuntime.js', () => ({
   getWalletRuntime: () => ({
     assertBinaryTransactionsSupported: mocks.assertBinaryTransactionsSupported,
+    isNimiqPay: mocks.isNimiqPay,
+    sendMiniAppTransaction: mocks.sendMiniAppTransaction,
   }),
 }))
 
@@ -48,6 +52,8 @@ describe('useFollow wallet runtime', () => {
     mocks.signTransaction.mockReset()
     mocks.sendRawTransaction.mockReset()
     mocks.startDeltaSync.mockReset()
+    mocks.isNimiqPay.value = false
+    mocks.sendMiniAppTransaction.mockReset()
   })
 
   it.each(['follow', 'unfollow'])('rejects %s before signing when binary writes are unavailable', async (action) => {
@@ -57,6 +63,19 @@ describe('useFollow wallet runtime', () => {
 
     const follow = useFollow('NQ15 7A2M 7AN6 6M1M LKGU 3Q5B 2JLK VJ7N 4YH0')
     await expect(follow[action]()).rejects.toThrow('Binary writes unavailable')
+    expect(mocks.signTransaction).not.toHaveBeenCalled()
+    expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
+  })
+
+  it.each(['follow', 'unfollow'])('sends %s through the native Nimiq Pay provider', async (action) => {
+    mocks.isNimiqPay.value = true
+    mocks.sendMiniAppTransaction.mockResolvedValue('pay-tx-hash')
+
+    const follow = useFollow('NQ15 7A2M 7AN6 6M1M LKGU 3Q5B 2JLK VJ7N 4YH0')
+    await follow[action]()
+
+    expect(mocks.assertBinaryTransactionsSupported).not.toHaveBeenCalled()
+    expect(mocks.sendMiniAppTransaction).toHaveBeenCalledTimes(1)
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
   })

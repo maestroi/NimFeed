@@ -30,21 +30,31 @@ export function useFollow(targetAddress) {
 
   async function sendFollowTx(isFollow) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
-    walletRuntime.assertBinaryTransactionsSupported()
     const addr = typeof targetAddress === 'object' ? targetAddress.value : targetAddress
     const targetBytes = nqToAddressBytes(addr)
     const payload = isFollow ? buildFollow(targetBytes) : buildUnfollow(targetBytes)
-    const height = await rpc.getBlockNumber()
 
-    const signed = await hub.signTransaction({
-      sender: auth.address,
-      recipient: FOLLOW_CATALOG_ADDRESS,
-      value: TX_VALUE_LUNA,
-      fee: 0,
-      extraData: payload,
-      validityStartHeight: height,
-    })
-    await rpc.sendRawTransaction(signed.serializedTx)
+    if (walletRuntime.isNimiqPay.value) {
+      await walletRuntime.sendMiniAppTransaction({
+        recipient: FOLLOW_CATALOG_ADDRESS,
+        value: TX_VALUE_LUNA,
+        fee: 0,
+        extraData: payload,
+      })
+    } else {
+      walletRuntime.assertBinaryTransactionsSupported()
+      const height = await rpc.getBlockNumber()
+
+      const signed = await hub.signTransaction({
+        sender: auth.address,
+        recipient: FOLLOW_CATALOG_ADDRESS,
+        value: TX_VALUE_LUNA,
+        fee: 0,
+        extraData: payload,
+        validityStartHeight: height,
+      })
+      await rpc.sendRawTransaction(signed.serializedTx)
+    }
     await startDeltaSync()
   }
 

@@ -62,6 +62,7 @@ export const NON_SELF_TX_RECIPIENT = String(
 export const CATALOG_ADDRESS = POST_CATALOG_ADDRESS
 
 export const TX_VALUE_LUNA = 1
+export const LUNA_PER_NIM = 100000
 export const FEED_PAGE_SIZE = 20
 export const CHUNK_DATA_SIZE = 50
 export const INLINE_MAX_NO_REPLY = 51

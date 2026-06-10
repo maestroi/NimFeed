@@ -75,6 +75,7 @@ export function usePost() {
       }
       if (!tx?.from) throw new Error('Post sent, but the signing account could not be resolved yet. Refresh shortly.')
       if (!sameAddress(tx.from, auth.address)) {
+        walletRuntime.rememberSigningAddress(walletRuntime.custodialAddress.value ?? auth.address, tx.from)
         auth.setAddress(tx.from)
         await auth.loadProfile()
       }

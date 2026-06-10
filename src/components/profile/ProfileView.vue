@@ -15,6 +15,7 @@ import {
   normalizeRpcEndpoint,
 } from '../../chain/rpcSettings.js'
 import { useIndexer } from '../../indexer/useIndexer.js'
+import { getWalletRuntime, loadSigningMap } from '../../chain/walletRuntime.js'
 import { POST_CATALOG_ADDRESS, FOLLOW_CATALOG_ADDRESS, EXPLORER_BASE_URL } from '../../protocol/constants.js'
 import { isDebugLogsEnabled, setDebugLogsEnabled } from '../../debug/logging.js'
 import ProfileCard from './ProfileCard.vue'
@@ -79,6 +80,7 @@ async function loadDebug() {
       db.sync_state.toArray(),
     ])
 
+    const wr = getWalletRuntime()
     debugData.value = {
       network: String(import.meta.env.VITE_NIMFEED_NETWORK || 'mainnet(default)'),
       rpcEndpoint: rpc.url,
@@ -86,6 +88,12 @@ async function loadDebug() {
       postCatalog: POST_CATALOG_ADDRESS,
       followCatalog: FOLLOW_CATALOG_ADDRESS,
       account: auth.address ?? null,
+      wallet: {
+        kind: wr.kind?.value ?? null,
+        custodialAddress: wr.custodialAddress?.value ?? null,
+        lastConnectInfo: wr.lastConnectInfo?.value ?? null,
+        signingMap: loadSigningMap(),
+      },
       dbCounts: { users, claims, posts: postRows, refs, follows, chunks },
       syncState: syncRows
         .map((s) => ({
@@ -252,6 +260,15 @@ onBeforeUnmount(() => {
           <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">postCatalog:</span> {{ debugData.postCatalog }}</p>
           <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">followCatalog:</span> {{ debugData.followCatalog }}</p>
           <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">account:</span> {{ debugData.account ?? 'none' }}</p>
+          <div>
+            <p class="font-semibold text-[var(--nf-text)]">wallet connection</p>
+            <div class="mt-1 rounded-lg border border-[var(--nf-border)] bg-[var(--nf-soft)] px-2 py-1">
+              <p><span class="font-semibold text-[var(--nf-text)]">kind:</span> {{ debugData.wallet.kind ?? 'unknown' }}</p>
+              <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">custodial:</span> {{ debugData.wallet.custodialAddress ?? 'none' }}</p>
+              <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">lastConnect:</span> {{ debugData.wallet.lastConnectInfo ? JSON.stringify(debugData.wallet.lastConnectInfo) : 'none' }}</p>
+              <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">signingMap:</span> {{ Object.keys(debugData.wallet.signingMap).length ? JSON.stringify(debugData.wallet.signingMap) : 'empty' }}</p>
+            </div>
+          </div>
           <p>
             <span class="font-semibold text-[var(--nf-text)]">db:</span>
             users={{ debugData.dbCounts.users }}, claims={{ debugData.dbCounts.claims }}, posts={{ debugData.dbCounts.posts }},

@@ -3,11 +3,13 @@ import { init } from '@nimiq/mini-app-sdk'
 import { useHub } from './hub.js'
 import { encodeMiniAppEnvelope } from '../protocol/miniAppEnvelope.js'
 import { blake2b } from '@noble/hashes/blake2.js'
-import { addressBytesToNq } from '../protocol/address.js'
+import { addressBytesToNq, canonicalNqAddress } from '../protocol/address.js'
 import { hexToBytes } from '../protocol/utils.js'
 
 export const BINARY_TRANSACTIONS_UNSUPPORTED =
   'Nimiq Pay cannot publish NimFeed posts yet because its provider does not support the required binary transaction data.'
+
+const SIGNING_MAP_KEY = 'nimfeed_pay_signing_map'
 
 function providerError(value) {
   if (!value || typeof value !== 'object' || !('error' in value)) return null
@@ -18,6 +20,25 @@ function deriveAddressFromPublicKey(publicKey) {
   return addressBytesToNq(blake2b(hexToBytes(publicKey), { dkLen: 32 }).slice(0, 20))
 }
 
+export function loadSigningMap() {
+  try {
+    return JSON.parse(localStorage.getItem(SIGNING_MAP_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+function getCachedSigningAddress(custodialAddress) {
+  const map = loadSigningMap()
+  return map[canonicalNqAddress(custodialAddress)] ?? null
+}
+
+function rememberSigningAddress(custodialAddress, signingAddress) {
+  const map = loadSigningMap()
+  map[canonicalNqAddress(custodialAddress)] = canonicalNqAddress(signingAddress)
+  localStorage.setItem(SIGNING_MAP_KEY, JSON.stringify(map))
+}
+
 export function createWalletRuntime({
   initMiniApp = init,
   hub = useHub(),
@@ -25,6 +46,8 @@ export function createWalletRuntime({
 } = {}) {
   const kind = ref('detecting')
   const provider = shallowRef(null)
+  const lastConnectInfo = shallowRef(null)
+  const custodialAddress = shallowRef(null)
   let initialization = null
 
   const isNimiqPay = computed(() => kind.value === 'nimiq-pay')
@@ -56,12 +79,35 @@ export function createWalletRuntime({
       if (!Array.isArray(result) || !result.length) {
         throw new Error('No Nimiq Pay account was shared.')
       }
+
+      custodialAddress.value = result[0]
+
+      const debugInfo = { listAccounts: result, sign: null, derivedFromSign: null }
+
       if (typeof provider.value.sign === 'function') {
-        const signed = await provider.value.sign('Login to NimFeed')
-        const signError = providerError(signed)
-        if (signError) throw new Error(signError)
-        if (signed?.publicKey) return deriveAddressFromPublicKey(signed.publicKey)
+        try {
+          const signed = await provider.value.sign('Login to NimFeed')
+          const signError = providerError(signed)
+          if (signError) {
+            debugInfo.sign = { error: signError }
+          } else {
+            debugInfo.sign = { publicKey: signed?.publicKey ?? null, signature: signed?.signature ?? null }
+            if (signed?.publicKey) {
+              debugInfo.derivedFromSign = deriveAddressFromPublicKey(signed.publicKey)
+            }
+          }
+        } catch (err) {
+          debugInfo.sign = { error: err?.message ?? String(err) }
+        }
       }
+
+      lastConnectInfo.value = debugInfo
+
+      const cachedSigningAddress = getCachedSigningAddress(result[0])
+      if (cachedSigningAddress) return cachedSigningAddress
+
+      if (debugInfo.derivedFromSign) return debugInfo.derivedFromSign
+
       return result[0]
     }
 
@@ -78,8 +124,8 @@ export function createWalletRuntime({
       recipient,
       value,
       fee,
-      data: encodeMiniAppEnvelope(extraData),
     }
+    if (extraData) request.data = encodeMiniAppEnvelope(extraData)
     if (validityStartHeight !== undefined) request.validityStartHeight = validityStartHeight
     const result = await provider.value.sendBasicTransactionWithData(request)
     const error = providerError(result)
@@ -102,10 +148,13 @@ export function createWalletRuntime({
     canConnect,
     canPublishPosts,
     canWriteBinaryTransactions,
+    lastConnectInfo,
+    custodialAddress,
     initialize,
     connect,
     sendMiniAppTransaction,
     assertBinaryTransactionsSupported,
+    rememberSigningAddress,
   }
 }
 

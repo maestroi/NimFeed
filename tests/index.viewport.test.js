@@ -6,7 +6,7 @@ describe('mobile viewport', () => {
     const html = readFileSync(`${process.cwd()}/index.html`, 'utf8')
 
     expect(html).toContain(
-      'content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"',
+      'content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"',
     )
   })
 })
