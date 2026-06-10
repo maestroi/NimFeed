@@ -60,13 +60,28 @@ Then run:
 npm run dev
 ```
 
-To test from Nimiq Pay on a phone connected to the same network:
+To test from Nimiq Pay on a phone (or emulator) connected to the same network:
 
 ```bash
 npm run dev -- --host
 ```
 
-Open the displayed network URL from Nimiq Pay's Mini Apps custom URL field.
+Vite will print a network URL such as `http://192.168.x.x:5173/`. Then in
+Nimiq Pay:
+
+1. Open the **Discover** tab (search icon in the bottom nav).
+2. Paste the network URL into the search bar (e.g.
+   `http://192.168.x.x:5173/`).
+3. Tap the matching result to open NimFeed as a mini app.
+
+Nimiq Pay reloads the page on every dev-server restart/HMR full reload, so
+you may need to re-open it from Discover after editing non-Vue modules.
+
+For the deployed app, it can be opened via deep link:
+
+```text
+nimiqpay://miniapp?url=https://maestroi.github.io/NimFeed/
+```
 
 ## Available scripts
 
@@ -116,12 +131,6 @@ transfers. Profile claims and replies remain unavailable inside Nimiq Pay
 until their larger metadata formats receive equivalent text-safe encodings.
 
 Normal browsers retain full write support through Nimiq Hub.
-
-Once deployed, the mini app can be opened with:
-
-```text
-nimiqpay://miniapp?url=https://maestroi.github.io/NimFeed/
-```
 
 Core folders:
 
