@@ -14,6 +14,8 @@ const { startDeltaSync } = useIndexer()
 const error = ref(null)
 const step = ref('idle')
 
+const ONBOARDED_KEY = 'nimfeed_onboarded'
+
 async function connect() {
   if (!walletRuntime.canConnect.value) return
   error.value = null
@@ -26,7 +28,11 @@ async function connect() {
     await startDeltaSync()
 
     const user = await getUser(auth.address)
-    if (!user?.username && walletRuntime.canWriteBinaryTransactions.value) {
+    const previouslyOnboarded = localStorage.getItem(ONBOARDED_KEY) === '1'
+    if (user?.username) {
+      localStorage.setItem(ONBOARDED_KEY, '1')
+    }
+    if (!user?.username && !previouslyOnboarded && walletRuntime.canWriteBinaryTransactions.value) {
       step.value = 'onboarding'
     } else {
       await auth.loadProfile()
@@ -39,6 +45,7 @@ async function connect() {
   }
 }
 function onOnboardingDone() {
+  localStorage.setItem(ONBOARDED_KEY, '1')
   ui.loginModalOpen = false
   step.value = 'idle'
 }
