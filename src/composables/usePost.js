@@ -127,9 +127,6 @@ export function usePost() {
 
   async function submitPost(text, { replyToAuthor = null, replyToPostId = null } = {}) {
     if (!auth.isLoggedIn) throw new Error('Not logged in')
-    if (walletRuntime.isNimiqPay.value && replyToAuthor && replyToPostId) {
-      throw new Error('Replies are not supported in Nimiq Pay yet.')
-    }
     if (!text?.trim()) throw new Error('Post text is empty')
     if (text.length > MAX_POST_CHARS) throw new Error(`Post exceeds ${MAX_POST_CHARS} chars`)
     if (sending.value) return
@@ -144,7 +141,9 @@ export function usePost() {
       const raw = new TextEncoder().encode(text)
       const isReply = !!(replyToAuthor && replyToPostId)
       const limit = walletRuntime.isNimiqPay.value
-        ? MINI_APP_INLINE_DATA_SIZE
+        ? isReply
+          ? 0
+          : MINI_APP_INLINE_DATA_SIZE
         : isReply
           ? INLINE_MAX_WITH_REPLY
           : INLINE_MAX_NO_REPLY
@@ -238,10 +237,12 @@ export function usePost() {
       const postIdBytes = generatePostId()
       const postIdHex = postIdToHex(postIdBytes)
       const replyOpts = isReply
-        ? {
-            replyAuthor: nqToAddressBytes(replyToAuthor),
-            replyPostId: hexToPostIdBytes(replyToPostId),
-          }
+        ? walletRuntime.isNimiqPay.value
+          ? { replyPostId: hexToPostIdBytes(replyToPostId) }
+          : {
+              replyAuthor: nqToAddressBytes(replyToAuthor),
+              replyPostId: hexToPostIdBytes(replyToPostId),
+            }
         : null
 
       const hashHex = Array.from(contentHash)

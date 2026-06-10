@@ -6,7 +6,7 @@ import {
   SYNC_WALL_CLOCK_BUDGET_MS,
 } from '../protocol/constants.js'
 import { processPostCatalogTx, processFollowCatalogTx, processDerivedAddressTx } from './handlers.js'
-import { getSyncState, putSyncState, reconcileUsernameOwnership } from '../db/queries.js'
+import { getSyncState, putSyncState, reconcileUsernameOwnership, reconcileReplyAuthors } from '../db/queries.js'
 import { addressBytesToNq, derivePostAddress, nqToAddressBytes } from '../protocol/address.js'
 import { hexToPostIdBytes } from '../protocol/utils.js'
 import { db } from '../db/schema.js'
@@ -111,6 +111,11 @@ export class IndexerService extends EventTarget {
     try {
       await this.syncPostCatalog()
       await reconcileUsernameOwnership()
+      try {
+        await reconcileReplyAuthors()
+      } catch (err) {
+        debug('reconcileReplyAuthors:error', { message: err?.message ?? String(err) })
+      }
       await this.syncFollowCatalog()
 
       const pending = await db.posts.where('status').anyOf('pending', 'missing_chunks').toArray()

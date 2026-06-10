@@ -10,6 +10,7 @@ import {
   updateUser,
   getUsersByUsername,
   getPost,
+  getPostByPostId,
   putPost,
   updatePost,
   putChunk,
@@ -156,6 +157,12 @@ async function handlePostInline(ev) {
 async function handlePostStart(ev) {
   const existing = await getPost(ev.from, ev.postId)
 
+  let replyToAuthor = ev.replyToAuthor
+  if (ev.isReply && ev.isCompactReply) {
+    const target = await getPostByPostId(ev.replyToPostId)
+    replyToAuthor = target?.author ?? null
+  }
+
   const record = {
     author: ev.from,
     post_id: ev.postId,
@@ -169,7 +176,7 @@ async function handlePostStart(ev) {
     content_hash: ev.contentHash,
     is_inline: false,
     is_reply: ev.isReply,
-    reply_to_author: ev.replyToAuthor,
+    reply_to_author: replyToAuthor,
     reply_to_post_id: ev.replyToPostId,
     status: 'pending',
     first_seen_at: existing?.first_seen_at ?? ev.blockHeight,

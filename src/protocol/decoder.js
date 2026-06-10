@@ -87,13 +87,16 @@ function decodePostStart(base, bytes) {
   const totalChunks = bytes[12]
   const flags = bytes[13]
   const compressed = !!(flags & 0x01)
-  const isReply = !!(flags & 0x02)
+  const isCompactReply = !!(flags & 0x04)
+  const isReply = !!(flags & 0x02) || isCompactReply
   const contentHash = Array.from(bytes.slice(14, 22))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
   let replyToAuthor = null
   let replyToPostId = null
-  if (isReply) {
+  if (isCompactReply) {
+    replyToPostId = postIdToHex(bytes.slice(22, 30))
+  } else if (isReply) {
     replyToAuthor = addressBytesToNq(bytes.slice(22, 42))
     replyToPostId = postIdToHex(bytes.slice(42, 50))
   }
@@ -105,6 +108,7 @@ function decodePostStart(base, bytes) {
     compressed,
     contentHash,
     isReply,
+    isCompactReply,
     replyToAuthor,
     replyToPostId,
   }

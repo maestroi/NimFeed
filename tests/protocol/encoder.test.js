@@ -72,6 +72,32 @@ describe('buildPostStart', () => {
     expect(noComp[13] & 0x01).toBe(0)
     expect(comp[13] & 0x01).toBe(1)
   })
+
+  it('produces a 30-byte compact-reply payload referencing only replyToPostId', () => {
+    const postId = new Uint8Array(8).fill(7)
+    const hash = new Uint8Array(8).fill(0xff)
+    const replyPostId = new Uint8Array(8).fill(0x42)
+    const bytes = buildPostStart(postId, 1, false, hash, { replyPostId })
+
+    expect(bytes[13] & 0x02).toBe(0x02) // isReply
+    expect(bytes[13] & 0x04).toBe(0x04) // compact
+    expect(bytes.slice(22, 30)).toEqual(replyPostId)
+    // Compact reply payload is exactly 30 meaningful bytes (no author bytes written).
+    expect(bytes.slice(30, 50)).toEqual(new Uint8Array(20))
+  })
+
+  it('produces the existing 50-byte full-reply payload when replyAuthor is provided', () => {
+    const postId = new Uint8Array(8).fill(7)
+    const hash = new Uint8Array(8).fill(0xff)
+    const replyAuthor = new Uint8Array(20).fill(1)
+    const replyPostId = new Uint8Array(8).fill(2)
+    const bytes = buildPostStart(postId, 1, false, hash, { replyAuthor, replyPostId })
+
+    expect(bytes[13] & 0x02).toBe(0x02) // isReply
+    expect(bytes[13] & 0x04).toBe(0x00) // not compact
+    expect(bytes.slice(22, 42)).toEqual(replyAuthor)
+    expect(bytes.slice(42, 50)).toEqual(replyPostId)
+  })
 })
 
 describe('buildPostChunk', () => {

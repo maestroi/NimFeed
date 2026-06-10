@@ -52,9 +52,15 @@ export function buildPostStart(postIdBytes8, totalChunks, compressed, contentHas
   const buf = makePayload(TYPES.POST_START)
   buf.set(postIdBytes8, 4)
   buf[12] = totalChunks
-  buf[13] = (compressed ? 0x01 : 0x00) | (reply ? 0x02 : 0x00)
+  const isCompactReply = !!(reply && !reply.replyAuthor)
+  buf[13] =
+    (compressed ? 0x01 : 0x00) |
+    (reply ? 0x02 : 0x00) |
+    (isCompactReply ? 0x04 : 0x00)
   buf.set(contentHash8, 14)
-  if (reply) {
+  if (reply && isCompactReply) {
+    buf.set(reply.replyPostId.slice(0, 8), 22)
+  } else if (reply) {
     buf.set(reply.replyAuthor.slice(0, 20), 22)
     buf.set(reply.replyPostId.slice(0, 8), 42)
   }

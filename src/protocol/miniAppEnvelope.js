@@ -11,6 +11,7 @@ function semanticEnd(payload) {
     case TYPES.PROFILE_CLAIM:
       return 4
     case TYPES.POST_START:
+      if (payload[13] & 0x04) return 30
       return payload[13] & 0x02 ? 50 : 22
     case TYPES.POST_CHUNK:
       return 14 + payload[13]

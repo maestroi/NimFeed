@@ -102,6 +102,22 @@ export async function reconcileUsernameOwnership() {
 // Posts
 export const putPost = (post) => db.posts.put(post)
 export const getPost = (author, postId) => db.posts.get([author, postId])
+export const getPostByPostId = (postId) => db.posts.where('post_id').equals(postId).first()
+
+export async function reconcileReplyAuthors() {
+  const unresolved = await db.posts
+    .toCollection()
+    .filter((p) => p.is_reply && !p.reply_to_author && !!p.reply_to_post_id)
+    .toArray()
+
+  for (const post of unresolved) {
+    const target = await getPostByPostId(post.reply_to_post_id)
+    if (target?.author) {
+      await db.posts.update([post.author, post.post_id], { reply_to_author: target.author })
+    }
+  }
+}
+
 export const updatePost = (author, postId, changes) => db.posts.update([author, postId], changes)
 
 export async function getPostsByAuthor(author) {

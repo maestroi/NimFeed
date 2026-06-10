@@ -5,6 +5,8 @@ import {
   getUser,
   putPost,
   getPost,
+  getPostByPostId,
+  reconcileReplyAuthors,
   putCatalogRef,
   getCatalogRefs,
   putProfileClaim,
@@ -86,6 +88,29 @@ describe('posts store', () => {
     expect(post.total_chunks).toBe(2)
   })
 
+  it('looks up a post by post_id alone via the post_id index', async () => {
+    await putPost({
+      author: 'NQ01 TARGET',
+      post_id: '00000000000000aa',
+      block_height: 50,
+      tx_index: 0,
+      content: 'original post',
+      total_chunks: null,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: null,
+      is_inline: true,
+      is_reply: false,
+      reply_to_author: null,
+      reply_to_post_id: null,
+      status: 'inline',
+      first_seen_at: 50,
+    })
+
+    const found = await db.posts.where('post_id').equals('00000000000000aa').first()
+    expect(found?.author).toBe('NQ01 TARGET')
+  })
+
   it('ranks claimed users by completed post count', async () => {
     await Promise.all([
       putUser({ address: 'NQ01 ALICE', display_name: 'Alice', username: 'alice' }),
@@ -107,6 +132,80 @@ describe('posts store', () => {
       expect.objectContaining({ address: 'NQ01 ALICE', username: 'alice', postCount: 2 }),
       expect.objectContaining({ address: 'NQ02 BOB', username: 'bob', postCount: 1 }),
     ])
+  })
+})
+
+describe('reply author resolution', () => {
+  it('getPostByPostId finds a post by its post_id alone', async () => {
+    await putPost({
+      author: 'NQ01 TARGET',
+      post_id: '00000000000000bb',
+      block_height: 50,
+      tx_index: 0,
+      content: 'original post',
+      total_chunks: null,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: null,
+      is_inline: true,
+      is_reply: false,
+      reply_to_author: null,
+      reply_to_post_id: null,
+      status: 'inline',
+      first_seen_at: 50,
+    })
+
+    const found = await getPostByPostId('00000000000000bb')
+    expect(found?.author).toBe('NQ01 TARGET')
+  })
+
+  it('getPostByPostId returns undefined when no post matches', async () => {
+    const found = await getPostByPostId('ffffffffffffffff')
+    expect(found).toBeUndefined()
+  })
+
+  it('reconcileReplyAuthors backfills reply_to_author once the target post is indexed', async () => {
+    await putPost({
+      author: 'NQ02 REPLIER',
+      post_id: '00000000000000cc',
+      block_height: 60,
+      tx_index: 0,
+      content: 'a reply',
+      total_chunks: null,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: null,
+      is_inline: true,
+      is_reply: true,
+      reply_to_author: null,
+      reply_to_post_id: '00000000000000dd',
+      status: 'inline',
+      first_seen_at: 60,
+    })
+
+    // Target post arrives later (out-of-order sync).
+    await putPost({
+      author: 'NQ01 TARGET',
+      post_id: '00000000000000dd',
+      block_height: 55,
+      tx_index: 0,
+      content: 'original post',
+      total_chunks: null,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: null,
+      is_inline: true,
+      is_reply: false,
+      reply_to_author: null,
+      reply_to_post_id: null,
+      status: 'inline',
+      first_seen_at: 55,
+    })
+
+    await reconcileReplyAuthors()
+
+    const reply = await getPost('NQ02 REPLIER', '00000000000000cc')
+    expect(reply.reply_to_author).toBe('NQ01 TARGET')
   })
 })
 

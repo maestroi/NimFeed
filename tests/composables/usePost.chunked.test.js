@@ -62,6 +62,8 @@ vi.mock('../../src/db/queries.js', () => ({
 }))
 
 import { usePost } from '../../src/composables/usePost.js'
+import { TYPES } from '../../src/protocol/constants.js'
+import { postIdToHex } from '../../src/protocol/utils.js'
 
 describe('usePost chunked popup recovery', () => {
   beforeEach(() => {
@@ -123,6 +125,27 @@ describe('usePost chunked popup recovery', () => {
       'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
       'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
     )
+  })
+
+  it('sends a compact-reply POST_START for Nimiq Pay replies', async () => {
+    mocks.isNimiqPay.value = true
+    const { submitPost } = usePost()
+    const replyToPostId = '00000000000000ff'
+
+    await expect(
+      submitPost('hi', {
+        replyToAuthor: 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
+        replyToPostId,
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(mocks.sendMiniAppTransaction.mock.calls.length).toBeGreaterThanOrEqual(2)
+
+    const startPayload = mocks.sendMiniAppTransaction.mock.calls[0][0].extraData
+    expect(startPayload[3]).toBe(TYPES.POST_START)
+    expect(startPayload[13] & 0x02).toBe(0x02) // isReply
+    expect(startPayload[13] & 0x04).toBe(0x04) // compact
+    expect(postIdToHex(startPayload.slice(22, 30))).toBe(replyToPostId)
   })
 
   it('uses smaller chunks for Nimiq Pay text transactions', async () => {

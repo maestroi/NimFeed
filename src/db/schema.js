@@ -38,3 +38,20 @@ db.version(2).stores({
     /* dropped store */
   }
 })
+
+db.version(3).stores({
+  profile_claims: '[username+address], username, address',
+  users: 'address, username',
+  posts: '[author+post_id], block_height, author, status, post_id, [reply_to_author+reply_to_post_id]',
+  post_chunks: '[author+post_id+chunk_index]',
+  catalog_refs: 'tx_hash, type, sender, [type+block_height+tx_index], [sender+type]',
+  follows: '[follower+followee], follower, followee',
+  sync_state: 'scope_key',
+})
+
+if (typeof window !== 'undefined') {
+  db.on('versionchange', () => {
+    db.close()
+    window.location.reload()
+  })
+}

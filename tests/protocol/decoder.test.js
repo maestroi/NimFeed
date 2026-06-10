@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseTransaction } from '../../src/protocol/decoder.js'
 import { buildProfileClaim, buildPostInline, buildPostStart, buildPostChunk } from '../../src/protocol/encoder.js'
-import { bytesToHex } from '../../src/protocol/utils.js'
+import { bytesToHex, postIdToHex } from '../../src/protocol/utils.js'
 import { POST_CATALOG_ADDRESS } from '../../src/protocol/constants.js'
 import { encodeMiniAppEnvelope } from '../../src/protocol/miniAppEnvelope.js'
 
@@ -59,6 +59,34 @@ describe('parseTransaction', () => {
     expect(ev.totalChunks).toBe(3)
     expect(ev.compressed).toBe(true)
     expect(ev.contentHash).toHaveLength(16)
+  })
+
+  it('parses a compact-reply POST_START', () => {
+    const postId = new Uint8Array(8).fill(2)
+    const hash = new Uint8Array(8).fill(0xab)
+    const replyPostId = new Uint8Array(8).fill(0x42)
+    const tx = mockTx(buildPostStart(postId, 1, false, hash, { replyPostId }))
+    const ev = parseTransaction(tx)
+
+    expect(ev.event).toBe('POST_START')
+    expect(ev.isReply).toBe(true)
+    expect(ev.isCompactReply).toBe(true)
+    expect(ev.replyToAuthor).toBeNull()
+    expect(ev.replyToPostId).toBe(postIdToHex(replyPostId))
+  })
+
+  it('parses a full-reply POST_START with isCompactReply false', () => {
+    const postId = new Uint8Array(8).fill(2)
+    const hash = new Uint8Array(8).fill(0xab)
+    const replyAuthor = new Uint8Array(20).fill(1)
+    const replyPostId = new Uint8Array(8).fill(2)
+    const tx = mockTx(buildPostStart(postId, 1, false, hash, { replyAuthor, replyPostId }))
+    const ev = parseTransaction(tx)
+
+    expect(ev.isReply).toBe(true)
+    expect(ev.isCompactReply).toBe(false)
+    expect(ev.replyToAuthor).not.toBeNull()
+    expect(ev.replyToPostId).toBe(postIdToHex(replyPostId))
   })
 
   it('parses POST_CHUNK', () => {

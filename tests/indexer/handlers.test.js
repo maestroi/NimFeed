@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../src/db/schema.js'
 import { processPostCatalogTx } from '../../src/indexer/handlers.js'
+import { putPost } from '../../src/db/queries.js'
 import { buildProfileClaim, buildPostInline, buildPostStart } from '../../src/protocol/encoder.js'
-import { bytesToHex, generatePostId } from '../../src/protocol/utils.js'
+import { bytesToHex, generatePostId, postIdToHex, hexToPostIdBytes } from '../../src/protocol/utils.js'
 import { POST_CATALOG_ADDRESS } from '../../src/protocol/constants.js'
 
 beforeEach(async () => {
@@ -70,5 +71,50 @@ describe('processPostCatalogTx', () => {
     expect(posts).toHaveLength(1)
     expect(posts[0].status).toBe('pending')
     expect(posts[0].total_chunks).toBe(2)
+  })
+
+  it('resolves reply_to_author for a compact-reply POST_START when the target is already indexed', async () => {
+    const targetId = generatePostId()
+    const targetIdHex = postIdToHex(targetId)
+    await putPost({
+      author: 'NQ01 TARGET',
+      post_id: targetIdHex,
+      block_height: 50,
+      tx_index: 0,
+      content: 'original post',
+      total_chunks: null,
+      chunks_received: 0,
+      compressed: false,
+      content_hash: null,
+      is_inline: true,
+      is_reply: false,
+      reply_to_author: null,
+      reply_to_post_id: null,
+      status: 'inline',
+      first_seen_at: 50,
+    })
+
+    const replyId = generatePostId()
+    const hash8 = new Uint8Array(8).fill(1)
+    const payload = buildPostStart(replyId, 1, false, hash8, { replyPostId: hexToPostIdBytes(targetIdHex) })
+    await processPostCatalogTx(tx(payload, 'NQ02 REPLIER', POST_CATALOG_ADDRESS, 60, 0))
+
+    const reply = await db.posts.get(['NQ02 REPLIER', postIdToHex(replyId)])
+    expect(reply.is_reply).toBe(true)
+    expect(reply.reply_to_author).toBe('NQ01 TARGET')
+    expect(reply.reply_to_post_id).toBe(targetIdHex)
+  })
+
+  it('leaves reply_to_author null for a compact-reply POST_START when the target is not yet indexed', async () => {
+    const targetIdHex = postIdToHex(generatePostId())
+    const replyId = generatePostId()
+    const hash8 = new Uint8Array(8).fill(1)
+    const payload = buildPostStart(replyId, 1, false, hash8, { replyPostId: hexToPostIdBytes(targetIdHex) })
+    await processPostCatalogTx(tx(payload, 'NQ02 REPLIER', POST_CATALOG_ADDRESS, 60, 0))
+
+    const reply = await db.posts.get(['NQ02 REPLIER', postIdToHex(replyId)])
+    expect(reply.is_reply).toBe(true)
+    expect(reply.reply_to_author).toBeNull()
+    expect(reply.reply_to_post_id).toBe(targetIdHex)
   })
 })

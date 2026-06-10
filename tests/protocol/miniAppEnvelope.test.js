@@ -17,6 +17,24 @@ describe('mini app transaction envelope', () => {
     expect(decodeMiniAppEnvelopeHex(chainHex)).toBe(bytesToHex(payload).replace(/(00)+$/, ''))
   })
 
+  it('fits a compact-reply POST_START in exactly 64 bytes', () => {
+    const replyPostId = new Uint8Array(8).fill(9)
+    const start = buildPostStart(
+      new Uint8Array(8).fill(2),
+      1,
+      false,
+      new Uint8Array(8).fill(3),
+      { replyPostId },
+    )
+
+    const text = encodeMiniAppEnvelope(start)
+    expect(text.length).toBe(64)
+
+    const chainHex = bytesToHex(new TextEncoder().encode(text))
+    const decodedHex = decodeMiniAppEnvelopeHex(chainHex)
+    expect(decodedHex).toHaveLength(60) // 30 bytes
+  })
+
   it('fits post starts and mini-app-sized chunks', () => {
     const start = buildPostStart(new Uint8Array(8).fill(2), 3, false, new Uint8Array(8).fill(3))
     const chunk = buildPostChunk(
