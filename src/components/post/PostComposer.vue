@@ -137,6 +137,7 @@ function cancelPending() {
             <span v-if="error && !popupBlocked" class="text-xs text-rose-600">{{ error }}</span>
 
             <button
+              type="button"
               class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               :disabled="!text.trim() || sending"
               @click="post"
@@ -154,7 +155,8 @@ function cancelPending() {
           </div>
         </div>
         <p v-if="walletRuntime.isNimiqPay.value" class="mt-2 text-xs text-[var(--nf-muted)]">
-          Nimiq Pay will ask you to approve each on-chain post transaction.
+          Nimiq Pay asks you to approve each on-chain transaction for this post.
+          <template v-if="effectiveReply"> Replies use a start transaction plus one or more chunks.</template>
         </p>
 
         <p v-if="signingActive" class="mt-2 text-xs text-[var(--nf-muted)]">

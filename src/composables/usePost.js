@@ -29,18 +29,30 @@ function sameAddress(a, b) {
   return String(a || '').replace(/\s+/g, '').toUpperCase() === String(b || '').replace(/\s+/g, '').toUpperCase()
 }
 
+// Shared across all usePost() callers so multiple PostComposer instances cannot double-submit.
+const sending = ref(false)
+const error = ref(null)
+const signingActive = ref(false)
+const signingStep = ref(0)
+const signingTotal = ref(0)
+const signingLabel = ref('')
+const pendingChunkSession = ref(null)
+
+export function resetPostUploadState() {
+  sending.value = false
+  error.value = null
+  signingActive.value = false
+  signingStep.value = 0
+  signingTotal.value = 0
+  signingLabel.value = ''
+  pendingChunkSession.value = null
+}
+
 export function usePost() {
   const auth = useAuthStore()
   const hub = useHub()
   const walletRuntime = getWalletRuntime()
   const { startDeltaSync } = useIndexer()
-  const sending = ref(false)
-  const error = ref(null)
-  const signingActive = ref(false)
-  const signingStep = ref(0)
-  const signingTotal = ref(0)
-  const signingLabel = ref('')
-  const pendingChunkSession = ref(null)
   const hasPendingChunkUpload = computed(() => !!pendingChunkSession.value)
   const pendingChunkRemaining = computed(() => {
     const s = pendingChunkSession.value

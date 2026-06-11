@@ -61,12 +61,13 @@ vi.mock('../../src/db/queries.js', () => ({
   updatePost: mocks.updatePost,
 }))
 
-import { usePost } from '../../src/composables/usePost.js'
+import { usePost, resetPostUploadState } from '../../src/composables/usePost.js'
 import { TYPES } from '../../src/protocol/constants.js'
 import { postIdToHex } from '../../src/protocol/utils.js'
 
 describe('usePost chunked popup recovery', () => {
   beforeEach(() => {
+    resetPostUploadState()
     mocks.auth.isLoggedIn = true
     mocks.auth.address = 'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD'
     mocks.auth.username = 'maestro'
@@ -125,6 +126,28 @@ describe('usePost chunked popup recovery', () => {
       'NQ17 VERV F3MQ 283T NRSR FPJG 55BJ PMHC N8MD',
       'NQ11 MTAV XXM6 SRTB 92NX EDKY XL8F S832 FA14',
     )
+  })
+
+  it('shares the sending lock across separate usePost instances', async () => {
+    mocks.isNimiqPay.value = true
+    let releaseSend
+    mocks.sendMiniAppTransaction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseSend = () => resolve('pay-txhash')
+        }),
+    )
+
+    const first = usePost()
+    const second = usePost()
+    const inFlight = first.submitPost('Hello Pay')
+    await Promise.resolve()
+
+    await expect(second.submitPost('Hello Pay')).resolves.toBeUndefined()
+    expect(mocks.sendMiniAppTransaction).toHaveBeenCalledTimes(1)
+
+    releaseSend()
+    await inFlight
   })
 
   it('sends a compact-reply POST_START for Nimiq Pay replies', async () => {
