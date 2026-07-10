@@ -58,16 +58,16 @@ describe('wallet runtime', () => {
       listAccounts: vi.fn().mockResolvedValue(['NQ10 SHARED ACCOUNT']),
       sign: vi.fn().mockResolvedValue({ publicKey: 'signed-public-key', signature: 'signature' }),
     }
-    const derivePublicKeyAddress = vi.fn().mockResolvedValue('NQ11 SIGNING ACCOUNT')
     const runtime = createWalletRuntime({
       initMiniApp: vi.fn().mockResolvedValue(provider),
       hub,
-      derivePublicKeyAddress,
     })
 
-    await expect(runtime.connect()).resolves.toBe('NQ11 SIGNING ACCOUNT')
+    const identity = await runtime.connect()
+    expect(identity).toBe(runtime.lastConnectInfo.value.derivedFromSign)
+    expect(identity).not.toBe('NQ10 SHARED ACCOUNT')
     expect(provider.sign).toHaveBeenCalledWith('Login to NimFeed')
-    expect(derivePublicKeyAddress).toHaveBeenCalledWith('signed-public-key')
+    expect(runtime.lastConnectInfo.value.sign.publicKey).toBe('signed-public-key')
   })
 
   it('exposes the custodial Nimiq Pay account so callers can key a signing-address cache', async () => {

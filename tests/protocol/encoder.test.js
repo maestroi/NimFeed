@@ -13,9 +13,9 @@ function header(bytes) {
 }
 
 describe('buildProfileClaim', () => {
-  it('produces 64-byte payload with correct header', () => {
+  it('produces a compact payload with correct header', () => {
     const bytes = buildProfileClaim('alice', 'Alice A')
-    expect(bytes.byteLength).toBe(64)
+    expect(bytes.byteLength).toBe(17)
     const h = header(bytes)
     expect(h.magic[0]).toBe(MAGIC[0])
     expect(h.magic[1]).toBe(MAGIC[1])
@@ -25,8 +25,7 @@ describe('buildProfileClaim', () => {
 
   it('null-terminates username', () => {
     const bytes = buildProfileClaim('alice', 'Alice')
-    const usernameField = bytes.slice(4, 36)
-    expect(usernameField[5]).toBe(0x00)
+    expect(bytes[9]).toBe(0x00)
   })
 
   it('normalizes username to lowercase', () => {

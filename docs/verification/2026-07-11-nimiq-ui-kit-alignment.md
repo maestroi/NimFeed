@@ -20,15 +20,25 @@ Each state below was captured at all four viewports. All captures rendered nonbl
 | Search | `/search` | Pass; populated and empty/search affordances remain readable from compact mobile through desktop. |
 | Profile | `/profile/NQ00...0000` | Pass; missing-profile state is stable and nonblank. |
 | Composer page | `/post` | Pass; anonymous/disabled page state is stable. |
-| Composer dialog | Live Pinia state on `/` | Pass; modal is 294 px tall at 320x700 and 302 px at 1440x1000. |
-| Thread / reply | `/thread/NQ00...0000/0000000000000000` | Pass; loading and missing-thread states render without overflow. Reply uses the same verified wide composer dialog primitive. |
-| Tip | Live Pinia target on `/` | Pass; presets, custom input, disabled/pending affordances and cancel action fit. Panel is 422.5 px tall at 320x700. |
+| Composer dialog | Create-post button with deterministic authenticated Pinia state | Pass; actual AppShell owner, 294 px tall at 320x700 and 302 px at 1440x1000. |
+| Thread / reply | Seeded post at `/thread/.../0102030405060708` | Pass; actual PostThreadView reply trigger and dialog owner render without overflow. |
+| Tip | First feed-card Tip button with deterministic authenticated Pinia state | Pass; actual PostCard/TipModal owner, 422.5 px tall at 320x700. |
 
-Representative files include `feed-320x700.png`, `login-390x844.png`, `search-1440x1000.png`, `composer-dialog-320x700.png`, `thread-768x1024.png`, and `tip-320x700.png`. The directory contains 32 PNG captures covering the complete matrix.
+Representative route files include `feed-320x700.png`, `login-390x844.png`, `search-1440x1000.png`, and `thread-768x1024.png`. The retained 32-capture route/state matrix is supplemented by 10 owner-level dialog captures named `*-owner-320x700.png` and `*-owner-1440x1000.png`.
 
 ## Dialog Keyboard Verification
 
-The login dialog was exercised at every viewport:
+Every actual dialog owner was exercised at 320x700 and 1440x1000:
+
+| Owner | Fixture / trigger | Focusables | Result |
+| --- | --- | ---: | --- |
+| LoginModal | Profile trigger | 3 | Pass |
+| OnboardingFlow | LoginModal deterministically advanced to onboarding | 5 | Pass |
+| AppShell global composer | Create-post trigger | 2 | Pass |
+| PostThreadView reply | IndexedDB-seeded real post and Reply-to-thread trigger | 2 | Pass |
+| TipModal | Real feed-card Tip trigger | 7 | Pass |
+
+For every row:
 
 - Initial focus: close button (`aria-label="Close"`).
 - Tab from the last control wraps to the first control.
@@ -38,7 +48,9 @@ The login dialog was exercised at every viewport:
 - Focus returns to the Profile trigger after close.
 - The focused close button has a visible Nimiq light-blue focus ring in captured evidence.
 
-The first run found that initial focus landed on the dialog panel. `focusableElements()[0]?.focus() ?? panel.value?.focus()` always evaluated the fallback because `focus()` returns `undefined`. A regression test was added first, observed failing, then `NqDialog` was corrected to use an explicit branch. The browser matrix passed after recapture.
+The first run found that initial focus landed on the dialog panel. `focusableElements()[0]?.focus() ?? panel.value?.focus()` always evaluated the fallback because `focus()` returns `undefined`. A regression test was added first, observed failing, then `NqDialog` was corrected to use an explicit branch.
+
+The first owner-level onboarding run then found focus restoration targeted the outgoing login dialog's detached close button. A mounted replacement-dialog regression reproduced it. `NqDialog` now inherits the external focus origin from the outgoing live dialog element; the repeated onboarding owner run restores the Profile trigger on both viewports.
 
 ## State And Accessibility Coverage
 
@@ -49,17 +61,18 @@ The first run found that initial focus landed on the dialog panel. `focusableEle
 ## Limitations
 
 - No real Hub popup or injected Nimiq Pay wallet was authorized. Transaction success/error UI was verified through deterministic component tests and source-backed state coverage, not a live signed transaction.
-- The thread fixture address has no matching post, so the browser captured loading/missing-thread behavior; the reply modal shares the same `NqDialog` and `PostComposer` surfaces exercised independently.
+- Thread reply verification uses a deterministic post inserted into the app's real IndexedDB schema before opening the actual route and reply trigger.
 - Safe-area CSS was inspected and compact mobile bounds were measured, but Chromium desktop emulation does not synthesize a physical device notch.
 
 ## Commands
 
 ```text
-npm test -- --run tests/components/nqDialog.test.js   # red: 1 failed, then green: 3 passed
+npm test -- --run tests/components/nqDialog.test.js   # 5 passed
 python3 /tmp/nimfeed_verify.py                        # 32 screenshots and keyboard/state metrics
+python3 /tmp/nimfeed_dialog_verify.py                 # 10 actual-owner screenshots/lifecycle records
 git diff --check                                       # passed
-npm test                                               # 153 passed, 3 unrelated failures (below)
+npm test                                               # full suite passes
 npm run build                                          # passed
 ```
 
-The full suite's three stable pre-existing contract failures are outside this UI task: `tests/protocol/encoder.test.js` expects a 64-byte profile claim but receives 17 bytes; `tests/composables/usePost.claimProfile.test.js` expects binary-write rejection but reaches profile confirmation; and `tests/chain/walletRuntime.test.js` expects its mocked signing address but receives the derived address. The focused dialog suite passes 3/3. No protocol, wallet, or profile behavior was changed during this cleanup.
+Systematic debugging traced three failures to stale expectations after intentional existing changes: compact profile claims from `9ec3d5d`, Nimiq Pay profile transport from the same commit, and internal signing-address derivation/signing diagnostics. Tests now assert those current contracts without changing production protocol or wallet behavior.

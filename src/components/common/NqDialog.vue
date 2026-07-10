@@ -66,11 +66,14 @@ watch(
   () => props.open,
   async (open) => {
     if (open) {
-      previouslyFocusedElement.value = document.activeElement
+      const activeElement = document.activeElement
+      const inheritedOrigin = activeElement?.closest?.('[role="dialog"]')?.__nqFocusOrigin
+      previouslyFocusedElement.value = inheritedOrigin ?? activeElement
       previousBodyOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
       bodyScrollLocked = true
       await nextTick()
+      if (panel.value) panel.value.__nqFocusOrigin = previouslyFocusedElement.value
       const initialFocusTarget = focusableElements()[0]
       if (initialFocusTarget) initialFocusTarget.focus()
       else panel.value?.focus()

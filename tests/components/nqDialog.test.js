@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { createApp, h, nextTick, ref } from 'vue'
+import NqDialog from '../../src/components/common/NqDialog.vue'
 
 const source = readFileSync(`${process.cwd()}/src/components/common/NqDialog.vue`, 'utf8')
 
@@ -36,5 +38,82 @@ describe('NqDialog accessibility', () => {
     expect(source).toContain('if (initialFocusTarget) initialFocusTarget.focus()')
     expect(source).toContain('else panel.value?.focus()')
     expect(source).not.toContain('focusableElements()[0]?.focus() ?? panel.value?.focus()')
+  })
+
+  it('mounts with initial focus, traps focus, closes, and restores its trigger', async () => {
+    const open = ref(false)
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp({
+      setup() {
+        return () => h('div', [
+          h('button', { id: 'trigger', onClick: () => { open.value = true } }, 'Open'),
+          h(NqDialog, { open: open.value, title: 'Test', onClose: () => { open.value = false } }, {
+            default: () => h('button', { id: 'action' }, 'Action'),
+          }),
+        ])
+      },
+    })
+
+    try {
+      app.mount(host)
+      const trigger = document.querySelector('#trigger')
+      trigger.focus()
+      trigger.click()
+      await nextTick()
+      await nextTick()
+
+      const close = document.querySelector('[aria-label="Close"]')
+      const action = document.querySelector('#action')
+      expect(document.activeElement).toBe(close)
+
+      close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+      expect(document.activeElement).toBe(action)
+      action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+      expect(document.activeElement).toBe(close)
+
+      close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      expect(document.querySelector('[role="dialog"]')).toBeNull()
+      expect(document.activeElement).toBe(trigger)
+    } finally {
+      app.unmount()
+      host.remove()
+    }
+  })
+
+  it('preserves the external trigger when one dialog replaces another', async () => {
+    const step = ref(0)
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp({
+      setup() {
+        return () => h('div', [
+          h('button', { id: 'handoff-trigger', onClick: () => { step.value = 1 } }, 'Open'),
+          h(NqDialog, { open: step.value === 1, title: 'First', onClose: () => { step.value = 0 } }, {
+            default: () => h('button', { id: 'next', onClick: () => { step.value = 2 } }, 'Next'),
+          }),
+          step.value === 2 ? h(NqDialog, { open: true, title: 'Second', onClose: () => { step.value = 0 } }) : null,
+        ])
+      },
+    })
+
+    try {
+      app.mount(host)
+      const trigger = document.querySelector('#handoff-trigger')
+      trigger.focus()
+      trigger.click()
+      await nextTick(); await nextTick()
+      document.querySelector('#next').click()
+      await nextTick(); await nextTick()
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      document.querySelector('[role="dialog"] [aria-label="Close"]').click()
+      await nextTick()
+      expect(document.activeElement).toBe(trigger)
+    } finally {
+      app.unmount()
+      host.remove()
+    }
   })
 })

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   },
   signTransaction: vi.fn(),
   sendRawTransaction: vi.fn(),
+  getTransactionByHash: vi.fn(),
   startDeltaSync: vi.fn(),
   getWinningClaim: vi.fn(),
   assertBinaryTransactionsSupported: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('../../src/chain/hub.js', () => ({
 vi.mock('../../src/chain/rpc.js', () => ({
   rpc: {
     sendRawTransaction: mocks.sendRawTransaction,
+    getTransactionByHash: mocks.getTransactionByHash,
   },
 }))
 
@@ -63,6 +65,7 @@ describe('usePost.claimProfile', () => {
 
     mocks.signTransaction.mockReset().mockResolvedValue({ serializedTx: 'abcd' })
     mocks.sendRawTransaction.mockReset().mockResolvedValue('txhash1')
+    mocks.getTransactionByHash.mockReset().mockResolvedValue({ from: mocks.auth.address })
     mocks.startDeltaSync.mockReset().mockResolvedValue(undefined)
     mocks.getWinningClaim.mockReset().mockResolvedValue(null)
     mocks.assertBinaryTransactionsSupported.mockReset()
@@ -89,13 +92,19 @@ describe('usePost.claimProfile', () => {
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
   })
 
-  it('rejects before signing when binary transactions are unavailable', async () => {
-    mocks.assertBinaryTransactionsSupported.mockImplementation(() => {
-      throw new Error('Binary writes unavailable')
+  it('sends the compact profile claim through Nimiq Pay without requiring binary transactions', async () => {
+    mocks.isNimiqPay.value = true
+    mocks.sendMiniAppTransaction.mockResolvedValue('pay-tx-hash')
+    mocks.auth.loadProfile.mockImplementation(async () => {
+      mocks.auth.username = 'maestro'
     })
 
     const { claimProfile } = usePost()
-    await expect(claimProfile('maestro', 'Maestro')).rejects.toThrow('Binary writes unavailable')
+    await expect(claimProfile('maestro', 'Maestro')).resolves.toBeUndefined()
+    expect(mocks.sendMiniAppTransaction).toHaveBeenCalledWith(expect.objectContaining({
+      extraData: expect.any(Uint8Array),
+    }))
+    expect(mocks.assertBinaryTransactionsSupported).not.toHaveBeenCalled()
     expect(mocks.signTransaction).not.toHaveBeenCalled()
     expect(mocks.sendRawTransaction).not.toHaveBeenCalled()
   })
