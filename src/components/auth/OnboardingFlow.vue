@@ -64,7 +64,7 @@ async function register() {
     </div>
     <div v-else class="py-4 text-center text-sm text-[var(--nf-muted)]" aria-live="polite">Signing profile claim…</div>
     <template #actions>
-      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="emit('cancel')">Cancel</button>
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" style="min-height: 44px" @click="emit('cancel')">Cancel</button>
     </template>
   </NqDialog>
 </template>

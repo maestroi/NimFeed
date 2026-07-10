@@ -82,7 +82,7 @@ function closeModal() {
       </div>
 
       <template #actions>
-      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="closeModal">
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" style="min-height: 44px" @click="closeModal">
         Cancel
       </button>
       </template>

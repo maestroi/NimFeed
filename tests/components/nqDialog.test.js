@@ -5,6 +5,18 @@ import NqDialog from '../../src/components/common/NqDialog.vue'
 
 const source = readFileSync(`${process.cwd()}/src/components/common/NqDialog.vue`, 'utf8')
 
+function matchedStyle(element, property) {
+  if (element.style.getPropertyValue(property)) return element.style.getPropertyValue(property)
+  for (const sheet of document.styleSheets) {
+    for (const rule of sheet.cssRules) {
+      if (rule.selectorText && element.matches(rule.selectorText) && rule.style.getPropertyValue(property)) {
+        return rule.style.getPropertyValue(property)
+      }
+    }
+  }
+  return ''
+}
+
 describe('NqDialog accessibility', () => {
   it('provides dialog semantics, dismissal controls, and a focus lifecycle', () => {
     expect(source).toContain('role="dialog"')
@@ -31,6 +43,28 @@ describe('NqDialog accessibility', () => {
     expect(source).not.toContain('var(--nf-surface-soft)')
     expect(source).toContain('<slot />')
     expect(source).toContain('<slot name="actions" />')
+  })
+
+  it('renders its close control with touch-sized dimensions', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const app = createApp({
+      render: () => h(NqDialog, { open: true, title: 'Touch targets' }, {
+        actions: () => h('button', { id: 'dialog-action' }, 'Cancel'),
+      }),
+    })
+
+    try {
+      app.mount(host)
+      await nextTick()
+      const close = document.querySelector('[aria-label="Close"]')
+
+      expect(Number.parseFloat(matchedStyle(close, 'width'))).toBeGreaterThanOrEqual(44)
+      expect(Number.parseFloat(matchedStyle(close, 'height'))).toBeGreaterThanOrEqual(44)
+    } finally {
+      app.unmount()
+      host.remove()
+    }
   })
 
   it('does not overwrite initial control focus with panel focus', () => {

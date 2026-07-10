@@ -92,6 +92,7 @@ async function send() {
           :key="preset"
           type="button"
           :aria-pressed="customAmount === '' && selectedPreset === preset"
+          style="min-height: 44px; width: 100%"
           :class="[
             'nf-focus nf-press rounded-lg border px-2 py-2 text-xs font-semibold',
             customAmount === '' && selectedPreset === preset
@@ -132,7 +133,7 @@ async function send() {
       </template>
     </template>
     <template #actions>
-      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="close">
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" style="min-height: 44px" @click="close">
         Cancel
       </button>
     </template>

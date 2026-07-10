@@ -123,7 +123,7 @@ onBeforeUnmount(() => {
                 {{ description }}
               </p>
             </div>
-            <button class="nq-dialog-close nf-focus" type="button" aria-label="Close" @click="emitClose">
+            <button class="nq-dialog-close nf-focus" type="button" aria-label="Close" style="width: 44px; height: 44px" @click="emitClose">
               &#215;
             </button>
           </header>
@@ -180,9 +180,9 @@ onBeforeUnmount(() => {
 }
 
 .nq-dialog-close {
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 50%;
   color: currentColor;
@@ -206,6 +206,10 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+}
+
+.nq-dialog-actions :deep(button) {
+  min-height: 44px;
 }
 
 .nq-dialog-enter-active,
