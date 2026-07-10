@@ -29,7 +29,7 @@ function openComposerFresh() {
         <button
           type="button"
           :class="route.path === '/' ? 'text-[var(--nf-primary)]' : 'text-[var(--nf-muted)]'"
-          class="nf-focus nf-press rounded-xl py-2 flex flex-col items-center gap-1"
+          class="nf-icon-button nf-focus nf-press col-start-1 min-h-11 min-w-11 flex-col gap-1 rounded-lg bg-transparent py-1"
           @click="router.push('/')"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@ function openComposerFresh() {
         <button
           type="button"
           :class="route.path === '/search' ? 'text-[var(--nf-primary)]' : 'text-[var(--nf-muted)]'"
-          class="nf-focus nf-press rounded-xl py-2 flex flex-col items-center gap-1"
+          class="nf-icon-button nf-focus nf-press col-start-2 min-h-11 min-w-11 flex-col gap-1 rounded-lg bg-transparent py-1"
           @click="router.push('/search')"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -55,7 +55,8 @@ function openComposerFresh() {
         <button
           v-if="walletRuntime.canPublishPosts.value"
           type="button"
-          class="nf-focus nf-press mx-auto h-12 w-12 rounded-full nq-gold-bg text-white flex items-center justify-center shadow-lg shadow-[rgba(236,153,28,0.35)]"
+          class="nf-focus nf-press mx-auto h-12 w-12 nf-icon-button col-start-3 min-h-11 min-w-11 rounded-full nq-gold-bg text-white shadow-lg shadow-[rgba(236,153,28,0.35)]"
+          aria-label="Create post"
           @click="openComposerFresh"
         >
           <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -66,7 +67,7 @@ function openComposerFresh() {
         <button
           type="button"
           :class="route.path.startsWith('/profile') ? 'text-[var(--nf-primary)]' : 'text-[var(--nf-muted)]'"
-          class="nf-focus nf-press rounded-xl py-2 flex flex-col items-center gap-1"
+          class="nf-icon-button nf-focus nf-press col-start-4 min-h-11 min-w-11 flex-col gap-1 rounded-lg bg-transparent py-1"
           @click="auth.isLoggedIn ? router.push(`/profile/${auth.address}`) : (ui.loginModalOpen = true)"
         >
           <AddressIdenticon

@@ -67,7 +67,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div :class="shellClasses(walletRuntime.isNimiqPay.value).outer">
+  <div :class="[shellClasses(walletRuntime.isNimiqPay.value).outer, 'bg-[var(--nf-surface)]']">
     <div :class="shellClasses(walletRuntime.isNimiqPay.value).page">
       <main class="h-full overflow-y-auto overscroll-y-contain pb-28">
         <router-view />

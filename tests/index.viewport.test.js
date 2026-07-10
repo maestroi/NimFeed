@@ -9,4 +9,11 @@ describe('mobile viewport', () => {
       'content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"',
     )
   })
+
+  it('keeps mini-app navigation clear of the device safe area', () => {
+    const layout = readFileSync(`${process.cwd()}/src/chain/miniAppLayout.js`, 'utf8')
+
+    expect(layout).toContain('pb-[max(0.5rem,env(safe-area-inset-bottom))]')
+    expect(layout.match(/navGrid: 'grid grid-cols-4/g)).toHaveLength(2)
+  })
 })

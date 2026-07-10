@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
 <template>
   <button
     v-if="!auth.isLoggedIn"
-    class="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+    class="nq-button light-blue nf-focus nq-blue-bg text-sm text-white"
     :disabled="!walletRuntime.canConnect.value"
     @click="ui.loginModalOpen = true"
   >
@@ -66,7 +66,9 @@ onBeforeUnmount(() => {
   <div v-else ref="root" class="relative">
     <button
       type="button"
-      class="flex items-center gap-2 rounded-full border border-[var(--nf-border)] bg-white px-2 py-1.5 text-left hover:bg-gray-50"
+      aria-label="Open wallet menu"
+      :aria-expanded="open"
+      class="nf-icon-button nf-focus min-h-11 gap-2 rounded-full border border-[var(--nf-border)] bg-white px-2 text-left hover:bg-[var(--nf-soft)]"
       @click.stop="toggleMenu"
     >
       <AddressIdenticon :address="auth.address" img-class="h-7 w-7" />
@@ -74,23 +76,33 @@ onBeforeUnmount(() => {
         <span class="block max-w-[130px] truncate text-xs font-semibold text-[var(--nf-text)]">{{ primaryLabel }}</span>
         <span class="block max-w-[130px] truncate text-[11px] text-[var(--nf-muted)]">{{ secondaryLabel }}</span>
       </span>
-      <span class="text-xs text-[var(--nf-muted)]">▾</span>
+      <svg
+        class="h-4 w-4 shrink-0 text-[var(--nf-muted)] transition-transform"
+        :class="open ? 'rotate-180' : ''"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+      >
+        <path d="m6 9 6 6 6-6" />
+      </svg>
     </button>
 
     <div
       v-if="open"
-      class="absolute right-0 z-40 mt-2 w-40 rounded-xl border border-[var(--nf-border)] bg-white p-1 shadow-lg"
+      class="absolute right-0 z-40 mt-2 w-40 rounded-xl border border-[var(--nf-border)] bg-white p-1 shadow-lg shadow-[rgba(31,35,72,0.14)]"
     >
       <button
         type="button"
-        class="w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--nf-text)] hover:bg-[var(--nf-soft)]"
+        class="nq-button-s nf-focus min-h-11 w-full justify-start rounded-md px-3 text-left text-sm text-[var(--nf-text)]"
         @click="goToProfile"
       >
         Profile
       </button>
       <button
         type="button"
-        class="w-full rounded-lg px-3 py-2 text-left text-sm text-[var(--nf-text)] hover:bg-[var(--nf-soft)]"
+        class="nf-button-quiet nf-focus min-h-11 w-full justify-start rounded-md px-3 text-left text-sm"
         @click="logout"
       >
         Logout
