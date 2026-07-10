@@ -71,7 +71,9 @@ watch(
       document.body.style.overflow = 'hidden'
       bodyScrollLocked = true
       await nextTick()
-      focusableElements()[0]?.focus() ?? panel.value?.focus()
+      const initialFocusTarget = focusableElements()[0]
+      if (initialFocusTarget) initialFocusTarget.focus()
+      else panel.value?.focus()
       return
     }
 

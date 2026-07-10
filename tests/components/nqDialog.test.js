@@ -30,4 +30,11 @@ describe('NqDialog accessibility', () => {
     expect(source).toContain('<slot />')
     expect(source).toContain('<slot name="actions" />')
   })
+
+  it('does not overwrite initial control focus with panel focus', () => {
+    expect(source).toContain('const initialFocusTarget = focusableElements()[0]')
+    expect(source).toContain('if (initialFocusTarget) initialFocusTarget.focus()')
+    expect(source).toContain('else panel.value?.focus()')
+    expect(source).not.toContain('focusableElements()[0]?.focus() ?? panel.value?.focus()')
+  })
 })
