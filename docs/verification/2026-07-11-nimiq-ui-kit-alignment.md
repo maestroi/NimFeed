@@ -45,7 +45,7 @@ For every row:
 - Shift+Tab from the first control wraps to the last control.
 - Escape closes the dialog.
 - Backdrop click closes the dialog, matching its default policy.
-- Focus returns to the Profile trigger after close.
+- Focus returns to each dialog owner's opening trigger after close (Profile, Create post, Tip, or Reply as applicable); onboarding returns to the external Profile trigger across the login-to-onboarding handoff.
 - The focused close button has a visible Nimiq light-blue focus ring in captured evidence.
 
 The first run found that initial focus landed on the dialog panel. `focusableElements()[0]?.focus() ?? panel.value?.focus()` always evaluated the fallback because `focus()` returns `undefined`. A regression test was added first, observed failing, then `NqDialog` was corrected to use an explicit branch.

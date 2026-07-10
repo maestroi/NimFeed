@@ -54,9 +54,14 @@ describe('wallet runtime', () => {
   })
 
   it('uses the Nimiq Pay signing account as the connected identity', async () => {
+    // Fixture independently verified with @nimiq/core 2.6.0:
+    // PublicKey.fromHex(publicKey).toAddress().toUserFriendlyAddress().
+    const publicKey = '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
+    const expectedSigningAddress = 'NQ77 RCPM 2Q7U 3VY0 B9AX XJEK 82S8 T8P5 LX09'
+    const custodialAddress = 'NQ10 SHARED ACCOUNT'
     const provider = {
-      listAccounts: vi.fn().mockResolvedValue(['NQ10 SHARED ACCOUNT']),
-      sign: vi.fn().mockResolvedValue({ publicKey: 'signed-public-key', signature: 'signature' }),
+      listAccounts: vi.fn().mockResolvedValue([custodialAddress]),
+      sign: vi.fn().mockResolvedValue({ publicKey, signature: 'signature' }),
     }
     const runtime = createWalletRuntime({
       initMiniApp: vi.fn().mockResolvedValue(provider),
@@ -64,10 +69,12 @@ describe('wallet runtime', () => {
     })
 
     const identity = await runtime.connect()
-    expect(identity).toBe(runtime.lastConnectInfo.value.derivedFromSign)
-    expect(identity).not.toBe('NQ10 SHARED ACCOUNT')
+    expect(identity).toBe(expectedSigningAddress)
+    expect(runtime.lastConnectInfo.value.derivedFromSign).toBe(expectedSigningAddress)
+    expect(identity).not.toBe(custodialAddress)
+    expect(runtime.custodialAddress.value).toBe(custodialAddress)
     expect(provider.sign).toHaveBeenCalledWith('Login to NimFeed')
-    expect(runtime.lastConnectInfo.value.sign.publicKey).toBe('signed-public-key')
+    expect(runtime.lastConnectInfo.value.sign.publicKey).toBe(publicKey)
   })
 
   it('exposes the custodial Nimiq Pay account so callers can key a signing-address cache', async () => {
