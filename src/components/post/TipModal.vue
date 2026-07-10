@@ -6,6 +6,7 @@ import { useDonate } from '../../composables/useDonate.js'
 import { rpc } from '../../chain/rpc.js'
 import { LUNA_PER_NIM } from '../../protocol/constants.js'
 import AddressIdenticon from '../common/AddressIdenticon.vue'
+import NqDialog from '../common/NqDialog.vue'
 
 const PRESET_AMOUNTS = [100, 1000, 10000, 50000]
 
@@ -71,10 +72,9 @@ async function send() {
 </script>
 
 <template>
-  <div v-if="target" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl">
-      <h2 class="text-xl font-bold mb-4">Send a tip</h2>
-
+  <NqDialog :open="!!target" title="Send a tip" @close="close">
+    <template #default>
+      <template v-if="target">
       <div class="flex items-center gap-3 mb-2">
         <AddressIdenticon :address="target.address" img-class="h-10 w-10" />
         <p class="nf-mono break-all text-xs text-[var(--nf-muted)]">
@@ -86,11 +86,12 @@ async function send() {
         Your balance: {{ balanceNim != null ? `${balanceNim.toLocaleString()} NIM` : '…' }}
       </p>
 
-      <div class="grid grid-cols-4 gap-2 mb-4">
+      <div class="mb-4 grid grid-cols-4 gap-2" role="group" aria-label="Tip amount">
         <button
           v-for="preset in PRESET_AMOUNTS"
           :key="preset"
           type="button"
+          :aria-pressed="customAmount === '' && selectedPreset === preset"
           :class="[
             'nf-focus nf-press rounded-lg border px-2 py-2 text-xs font-semibold',
             customAmount === '' && selectedPreset === preset
@@ -110,24 +111,30 @@ async function send() {
         min="0"
         step="any"
         placeholder="Custom amount"
-        class="nf-focus w-full rounded-lg border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)] mb-4"
+        class="nf-focus nf-input mb-4 w-full rounded-lg px-3 py-2 text-sm"
       />
 
       <button
         type="button"
-        class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+        class="nf-focus nq-button light-blue w-full"
         :disabled="!amount || pending || insufficientBalance"
         @click="send"
       >
         {{ pending ? 'Sending…' : `Send ${amount ? amount.toLocaleString() : ''} NIM`.trim() }}
       </button>
 
-      <p v-if="insufficientBalance" class="mt-3 text-red-500 text-sm">Insufficient balance.</p>
-      <p v-else-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
+      <div aria-live="polite">
+        <p v-if="insufficientBalance" class="mt-3 text-sm nf-danger-text" role="alert">Insufficient balance.</p>
+        <p v-else-if="error" class="mt-3 text-sm nf-danger-text" role="alert">{{ error }}</p>
+        <p v-else-if="pending" class="mt-3 text-sm text-[var(--nf-muted)]">Sending tip…</p>
+      </div>
 
-      <button class="mt-4 w-full py-2 text-gray-400 text-sm hover:text-gray-600" @click="close">
+      </template>
+    </template>
+    <template #actions>
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="close">
         Cancel
       </button>
-    </div>
-  </div>
+    </template>
+  </NqDialog>
 </template>

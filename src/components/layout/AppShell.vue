@@ -4,6 +4,7 @@ import BottomNav from './BottomNav.vue'
 import LoginModal from '../auth/LoginModal.vue'
 import PostComposer from '../post/PostComposer.vue'
 import TipModal from '../post/TipModal.vue'
+import NqDialog from '../common/NqDialog.vue'
 import { useUiStore } from '../../stores/ui.js'
 import { useAuthStore } from '../../stores/auth.js'
 import { useHub } from '../../chain/hub.js'
@@ -75,26 +76,14 @@ onBeforeUnmount(() => {
       <LoginModal />
       <TipModal />
 
-      <div
-        v-if="ui.composerOpen"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-[#1f2348]/50 backdrop-blur-[2px] sm:items-center"
+      <NqDialog
+        :open="ui.composerOpen"
+        title="New Post"
+        panel-class="nf-dialog-wide"
+        @close="closeComposer"
       >
-        <div class="w-full max-w-2xl p-2 sm:p-4">
-          <div class="nf-card overflow-hidden">
-            <div class="flex items-center justify-between border-b nf-divider px-4 py-3">
-              <p class="nq-label">New Post</p>
-              <button
-                type="button"
-                class="nf-focus rounded-md px-2 py-1 text-sm text-[var(--nf-muted)] hover:text-[var(--nf-text)]"
-                @click="closeComposer"
-              >
-                Close
-              </button>
-            </div>
-            <PostComposer />
-          </div>
-        </div>
-      </div>
+        <PostComposer />
+      </NqDialog>
     </div>
   </div>
 </template>

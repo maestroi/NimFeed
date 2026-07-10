@@ -6,6 +6,7 @@ import { getWalletRuntime } from '../../chain/walletRuntime.js'
 import { useIndexer } from '../../indexer/useIndexer.js'
 import { getUser } from '../../db/queries.js'
 import OnboardingFlow from './OnboardingFlow.vue'
+import NqDialog from '../common/NqDialog.vue'
 
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -57,39 +58,39 @@ function closeModal() {
 </script>
 
 <template>
-  <div v-if="ui.loginModalOpen" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-sm shadow-xl">
-      <h2 class="text-xl font-bold mb-4">Connect to NimFeed</h2>
-
+  <NqDialog
+    :open="ui.loginModalOpen && step !== 'onboarding'"
+    title="Connect to NimFeed"
+    :description="walletRuntime.isNimiqPay.value
+      ? 'Share and verify your active Nimiq Pay account to use NimFeed.'
+      : 'Sign in with your Nimiq wallet via Hub.'"
+    @close="closeModal"
+  >
       <div v-if="step === 'idle'">
-        <p class="text-gray-500 text-sm mb-6">
-          {{
-            walletRuntime.isNimiqPay.value
-              ? 'Share and verify your active Nimiq Pay account to use NimFeed.'
-              : 'Sign in with your Nimiq wallet via Hub.'
-          }}
-        </p>
         <button
-          class="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+          class="nf-focus nq-button light-blue w-full"
           :disabled="!walletRuntime.canConnect.value"
           @click="connect"
         >
           {{ walletRuntime.isNimiqPay.value ? 'Connect Nimiq Pay' : 'Connect with Nimiq Hub' }}
         </button>
-        <p v-if="error" class="mt-3 text-red-500 text-sm">{{ error }}</p>
+        <p v-if="error" class="mt-3 text-sm nf-danger-text" role="alert">{{ error }}</p>
       </div>
 
-      <div v-else-if="step === 'connecting'" class="text-center py-4 text-gray-500">
+      <div v-else-if="step === 'connecting'" class="py-4 text-center text-sm text-[var(--nf-muted)]" aria-live="polite">
         {{ walletRuntime.isNimiqPay.value ? 'Waiting for Nimiq Pay…' : 'Waiting for Hub…' }}
       </div>
 
-      <div v-else-if="step === 'onboarding'">
-        <OnboardingFlow @done="onOnboardingDone" />
-      </div>
-
-      <button class="mt-4 w-full py-2 text-gray-400 text-sm hover:text-gray-600" @click="closeModal">
+      <template #actions>
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="closeModal">
         Cancel
       </button>
-    </div>
-  </div>
+      </template>
+  </NqDialog>
+
+  <OnboardingFlow
+    v-if="ui.loginModalOpen && step === 'onboarding'"
+    @done="onOnboardingDone"
+    @cancel="closeModal"
+  />
 </template>

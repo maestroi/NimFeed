@@ -2,8 +2,9 @@
 import { ref } from 'vue'
 import { usePost } from '../../composables/usePost.js'
 import { normalizeUsername } from '../../protocol/utils.js'
+import NqDialog from '../common/NqDialog.vue'
 
-const emit = defineEmits(['done'])
+const emit = defineEmits(['done', 'cancel'])
 const { claimProfile } = usePost()
 const username = ref('')
 const displayName = ref('')
@@ -29,29 +30,41 @@ async function register() {
 </script>
 
 <template>
-  <div>
+  <NqDialog
+    :open="true"
+    title="Claim your profile"
+    description="One transaction publishes your username and display name on the post catalog."
+    @close="emit('cancel')"
+  >
     <div v-if="step < 3">
-      <h3 class="font-semibold mb-4">Claim your profile</h3>
-      <p class="text-gray-500 text-xs mb-3">One transaction publishes your username and display name on the post catalog.</p>
+      <label for="onboarding-username" class="mb-1 block text-sm font-semibold">Username</label>
       <input
+        id="onboarding-username"
         v-model="username"
+        autocomplete="username"
         placeholder="username (required)"
-        class="w-full border rounded-lg px-3 py-2 mb-3 text-sm"
+        class="nf-focus nf-input mb-3 w-full rounded-lg px-3 py-2 text-sm"
       />
+      <label for="onboarding-display-name" class="mb-1 block text-sm font-semibold">Display name</label>
       <input
+        id="onboarding-display-name"
         v-model="displayName"
+        autocomplete="name"
         placeholder="Display name (optional)"
-        class="w-full border rounded-lg px-3 py-2 mb-4 text-sm"
+        class="nf-focus nf-input mb-4 w-full rounded-lg px-3 py-2 text-sm"
       />
       <button
-        class="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700"
+        class="nf-focus nq-button light-blue w-full"
         @click="register"
       >
         Claim on NimFeed
       </button>
-      <p v-if="error" class="mt-2 text-red-500 text-sm">{{ error }}</p>
-      <p class="mt-2 text-gray-400 text-xs">Costs a small amount of Luna to sign.</p>
+      <p v-if="error" class="mt-2 text-sm nf-danger-text" role="alert">{{ error }}</p>
+      <p class="mt-2 text-xs text-[var(--nf-subtle)]">Costs a small amount of Luna to sign.</p>
     </div>
-    <div v-else class="text-center py-4 text-gray-500">Signing profile claim…</div>
-  </div>
+    <div v-else class="py-4 text-center text-sm text-[var(--nf-muted)]" aria-live="polite">Signing profile claim…</div>
+    <template #actions>
+      <button type="button" class="nf-focus px-3 py-2 text-sm font-semibold text-[var(--nf-muted)]" @click="emit('cancel')">Cancel</button>
+    </template>
+  </NqDialog>
 </template>

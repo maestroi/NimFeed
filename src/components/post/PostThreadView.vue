@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/auth.js'
 import { nqToAddressBytes, addressBytesToNq, derivePostAddress } from '../../protocol/address.js'
 import { hexToPostIdBytes } from '../../protocol/utils.js'
 import { getWalletRuntime } from '../../chain/walletRuntime.js'
+import NqDialog from '../common/NqDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -130,34 +131,22 @@ function openReplyComposer() {
         </button>
       </div>
 
-      <div
-        v-if="composerOpen && rootPost"
-        class="fixed inset-0 z-50 flex items-end justify-center bg-[#1f2348]/50 backdrop-blur-[2px] sm:items-center"
-        @click.self="composerOpen = false"
+      <NqDialog
+        :open="composerOpen && !!rootPost"
+        title="Reply"
+        panel-class="nf-dialog-wide"
+        @close="composerOpen = false"
       >
-        <div class="w-full max-w-2xl p-2 sm:p-4">
-          <div class="nf-card max-h-[85vh] overflow-y-auto">
-            <div class="flex items-center justify-between border-b nf-divider px-4 py-3">
-              <p class="nq-label">Reply</p>
-              <button
-                type="button"
-                class="nf-focus rounded-md px-2 py-1 text-sm text-[var(--nf-muted)] hover:text-[var(--nf-text)]"
-                @click="composerOpen = false"
-              >
-                Close
-              </button>
-            </div>
-            <PostComposer
-              :reply-to="{
-                author: rootPost.author,
-                postId: rootPost.post_id,
-                username: parentUsername,
-              }"
-              @submitted="composerOpen = false; loadThread()"
-            />
-          </div>
-        </div>
-      </div>
+        <PostComposer
+          v-if="rootPost"
+          :reply-to="{
+            author: rootPost.author,
+            postId: rootPost.post_id,
+            username: parentUsername,
+          }"
+          @submitted="composerOpen = false; loadThread()"
+        />
+      </NqDialog>
     </template>
   </section>
 </template>
