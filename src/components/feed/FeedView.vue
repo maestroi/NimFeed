@@ -66,11 +66,11 @@ const syncStatusLabel = computed(() => {
   return 'Up to date'
 })
 const syncStatusClass = computed(() => {
-  if (syncStatus.value.phase === 'error') return 'nf-status-danger'
+  if (syncStatus.value.phase === 'error') return 'nq-panel error'
   if (syncStatus.value.phase === 'syncing') {
-    return 'nf-status-warning'
+    return 'nq-panel warning'
   }
-  return 'nf-status-success'
+  return 'nq-panel success'
 })
 const showSyncBar = computed(() => syncStatus.value.phase === 'syncing' || syncStatus.value.phase === 'error')
 
@@ -299,7 +299,7 @@ watch(sentinelRef, (el, oldEl) => {
           <button
             type="button"
             class="nf-focus h-7 rounded-full px-3 text-xs font-semibold"
-            :class="ui.activeTab === 'global' ? 'nq-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
+            :class="ui.activeTab === 'global' ? 'nq-light-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
             :aria-pressed="ui.activeTab === 'global'"
             @click="switchTab('global')"
           >
@@ -308,7 +308,7 @@ watch(sentinelRef, (el, oldEl) => {
           <button
             type="button"
             class="nf-focus h-7 rounded-full px-3 text-xs font-semibold"
-            :class="ui.activeTab === 'following' ? 'nq-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
+            :class="ui.activeTab === 'following' ? 'nq-light-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
             :aria-pressed="ui.activeTab === 'following'"
             @click="auth.isLoggedIn ? switchTab('following') : (ui.loginModalOpen = true)"
           >
@@ -395,7 +395,7 @@ watch(sentinelRef, (el, oldEl) => {
         <button
           v-if="showSyncBar"
           type="button"
-          class="nf-focus nf-notice mt-2 flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold"
+          class="nf-focus nq-panel mt-2 flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold"
           :class="syncStatusClass"
           :aria-expanded="syncDetailsOpen"
           @click="handleSyncStatusClick"
@@ -429,7 +429,7 @@ watch(sentinelRef, (el, oldEl) => {
 
         <div
           v-if="syncDetailsOpen"
-          class="nf-notice mt-2 space-y-1.5 p-3 text-[11px] text-[var(--nf-muted)]"
+          class="nq-panel mt-2 space-y-1.5 p-3 text-[11px] text-[var(--nf-muted)]"
         >
           <p class="font-semibold text-[var(--nf-text)]">Public sync details</p>
           <p>History: {{ syncStatus.catalogFullySynced ? 'fully indexed' : 'still backfilling' }}</p>
@@ -440,7 +440,7 @@ watch(sentinelRef, (el, oldEl) => {
           <button
             v-if="syncStatus.phase === 'error'"
             type="button"
-            class="nf-focus mt-2 min-h-11 rounded-full nq-blue-bg px-4 py-2 text-xs font-semibold text-white"
+            class="nf-focus mt-2 min-h-11 nq-button light-blue px-4 py-2 text-xs font-semibold disabled:opacity-50"
             @click="retrySync"
           >
             Retry sync

@@ -77,7 +77,7 @@ function handleFollowClick() {
 
 <template>
   <div class="px-4 pt-4 sm:px-6">
-    <section class="nf-card p-4 sm:p-5">
+    <section class="nq-card p-4 sm:p-5">
       <div class="flex items-start justify-between gap-3">
         <AddressIdenticon :address="address" img-class="h-16 w-16" />
 
@@ -98,7 +98,7 @@ function handleFollowClick() {
               'nf-focus nf-press rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50',
               active
                 ? 'border border-[var(--nf-border)] text-[var(--nf-muted)] hover:text-[var(--nf-red)]'
-                : 'nq-blue-bg text-white',
+                : 'nq-light-blue-bg text-white',
             ]"
             @click="handleFollowClick"
           >
@@ -114,7 +114,7 @@ function handleFollowClick() {
             id="profile-username"
             v-model="editUsername"
             type="text"
-            class="nf-focus nf-input w-full rounded-lg px-3 py-2 text-sm"
+            class="nf-focus nq-input w-full text-sm"
             placeholder="username"
             autocomplete="off"
             spellcheck="false"
@@ -126,7 +126,7 @@ function handleFollowClick() {
             id="profile-display-name"
             v-model="editDisplayName"
             type="text"
-            class="nf-focus nf-input w-full rounded-lg px-3 py-2 text-sm"
+            class="nf-focus nq-input w-full text-sm"
             placeholder="Display name (optional)"
           />
         </div>
@@ -134,7 +134,7 @@ function handleFollowClick() {
         <div class="flex gap-2">
           <button
             type="button"
-            class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            class="nf-focus nf-press nq-button light-blue px-4 py-2 text-xs font-semibold disabled:opacity-50"
             :disabled="savingProfile"
             @click="saveEdit"
           >

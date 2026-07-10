@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
 <template>
   <button
     v-if="!auth.isLoggedIn"
-    class="nq-button light-blue nf-focus nq-blue-bg text-sm text-white"
+    class="nq-button light-blue nf-focus"
     :disabled="!walletRuntime.canConnect.value"
     @click="ui.loginModalOpen = true"
   >

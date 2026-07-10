@@ -107,7 +107,7 @@ onBeforeUnmount(() => {
       >
         <section
           ref="panel"
-          class="nq-dialog-panel nf-card"
+          class="nq-dialog-panel nq-card"
           :class="panelClass"
           role="dialog"
           aria-modal="true"
@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
   place-items: center;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
     max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  background: rgb(15 25 65 / 58%);
+  background: rgba(31, 35, 72, 0.58);
 }
 
 .nq-dialog-panel {

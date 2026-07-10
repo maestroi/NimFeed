@@ -121,7 +121,7 @@ function openReplyComposer() {
       >
         <button
           type="button"
-          class="nf-focus nf-press flex h-14 w-14 items-center justify-center rounded-full nq-blue-bg text-white shadow-lg ring-1 ring-black/10 hover:opacity-95"
+          class="nf-focus nf-press flex h-14 w-14 items-center justify-center rounded-full nq-light-blue-bg text-white shadow-lg ring-1 ring-black/10 hover:opacity-95"
           aria-label="Reply to thread"
           @click="openReplyComposer"
         >

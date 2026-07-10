@@ -94,7 +94,7 @@ const showContent = computed(
 const navigable = computed(() => !props.flat && !props.post._skeleton)
 
 const cardClass = computed(() => [
-  'nf-card p-4',
+  'nq-card p-4',
   navigable.value ? 'cursor-pointer nf-press' : '',
   props.highlight ? 'ring-2 ring-[var(--nf-primary)]/25 shadow-sm' : '',
 ])

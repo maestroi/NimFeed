@@ -1,5 +1,5 @@
 <template>
-  <div class="nf-card animate-pulse p-4">
+  <div class="nq-card animate-pulse p-4">
     <div class="flex gap-3">
       <div class="h-10 w-10 shrink-0 rounded-full bg-[var(--text-12)]" />
       <div class="flex-1 space-y-2">

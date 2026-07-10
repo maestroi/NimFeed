@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
     </header>
 
     <div v-if="showDebug" class="px-4 pt-3 sm:px-6">
-      <section class="nf-notice p-3">
+      <section class="nq-panel p-3">
         <div class="mb-2 flex items-center justify-between">
           <p class="nq-label !m-0 text-[var(--nf-muted)]">Diagnostics</p>
           <div class="flex items-center gap-3">
@@ -323,7 +323,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="loading && !user" class="px-4 pt-4 sm:px-6">
-      <div class="nf-card animate-pulse p-5 space-y-3">
+      <div class="nq-card animate-pulse p-5 space-y-3">
         <div class="h-16 w-16 rounded-full bg-[var(--text-12)]" />
         <div class="h-4 w-1/3 rounded bg-[var(--text-12)]" />
       </div>
@@ -332,7 +332,7 @@ onBeforeUnmount(() => {
     <ProfileCard v-else :user="user" :address="address" :saving-profile="savingProfile" @save-profile="handleSaveProfile" />
 
     <div v-if="isSelf && showRpcSettings" class="px-4 pt-3 sm:px-6">
-      <section class="nf-notice p-4">
+      <section class="nq-panel p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="nq-label !m-0 text-[var(--nf-muted)]">RPC Endpoint</p>
@@ -357,7 +357,7 @@ onBeforeUnmount(() => {
           id="rpc-endpoint"
           v-model="rpcInput"
           type="url"
-          class="nf-focus nf-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
+          class="nf-focus nq-input mt-1 w-full text-sm"
           placeholder="https://rpc-mainnet.nimiqscan.com"
           autocomplete="off"
           spellcheck="false"
@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
         <div class="mt-3 flex items-center gap-2">
           <button
             type="button"
-            class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            class="nf-focus nf-press nq-button light-blue px-4 py-2 text-xs font-semibold disabled:opacity-50"
             :disabled="rpcSaving"
             @click="saveRpcEndpoint"
           >

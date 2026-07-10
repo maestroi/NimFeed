@@ -24,13 +24,15 @@ describe('Nimiq-aligned application shell', () => {
     expect(nav).not.toMatch(/v-if="walletRuntime\.canPublishPosts\.value"[\s\S]{0,900}Home/)
   })
 
-  it('uses stable touch-safe icon button states for navigation', () => {
+  it('uses evenly distributed nav destinations with touch-safe targets', () => {
     const nav = source('src/components/layout/BottomNav.vue')
     const layout = source('src/chain/miniAppLayout.js')
 
     expect(layout.match(/grid-cols-4/g)).toHaveLength(2)
-    expect(nav.match(/min-h-11 min-w-11/g)).toHaveLength(4)
-    expect(nav.match(/nf-icon-button/g)).toHaveLength(4)
+    expect(nav).toContain('flex flex-col items-center gap-1')
+    expect(nav).not.toContain('nf-icon-button')
+    expect(nav).not.toContain('col-start-')
+    expect(layout).toContain('nf-card')
   })
 
   it('uses shared wallet controls and an accessible chevron icon', () => {

@@ -43,7 +43,7 @@ async function register() {
         v-model="username"
         autocomplete="username"
         placeholder="username (required)"
-        class="nf-focus nf-input mb-3 w-full rounded-lg px-3 py-2 text-sm"
+        class="nf-focus nq-input mb-3 w-full text-sm"
       />
       <label for="onboarding-display-name" class="mb-1 block text-sm font-semibold">Display name</label>
       <input
@@ -51,7 +51,7 @@ async function register() {
         v-model="displayName"
         autocomplete="name"
         placeholder="Display name (optional)"
-        class="nf-focus nf-input mb-4 w-full rounded-lg px-3 py-2 text-sm"
+        class="nf-focus nq-input mb-4 w-full text-sm"
       />
       <button
         class="nf-focus nq-button light-blue w-full"

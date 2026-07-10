@@ -37,7 +37,7 @@ describe('NqDialog accessibility', () => {
   it('uses the shared card surface and exposes content and action slots', () => {
     expect(source).toContain('<Teleport to="body">')
     expect(source).toContain('<Transition name="nq-dialog">')
-    expect(source).toContain('nf-card')
+    expect(source).toContain('nq-card')
     expect(source).toContain('max-width: 360px')
     expect(source).toContain('background: var(--nf-soft)')
     expect(source).not.toContain('var(--nf-surface-soft)')

@@ -13,13 +13,13 @@ describe('Nimiq content surface migration', () => {
     expect(feed).toContain(':aria-pressed="ui.activeTab === \'following\'"')
     expect(feed).toMatch(/>\s*Global\s*<\/button>/)
     expect(feed).toMatch(/>\s*Following\s*<\/button>/)
-    expect(feed).toContain('nf-notice')
+    expect(feed).toContain('nq-panel')
     expect(feed).not.toMatch(/<button[^>]*:role=/)
     expect(feed).toMatch(/<span[^>]*role="status"[^>]*aria-live="polite"/)
     expect(feed).toContain('role="alert"')
     expect(feed).toMatch(/nf-mono[^\n]*RPC:/)
     expect(feed).toMatch(/nf-mono[^\n]*Catalog:/)
-    expect(post).toContain('nf-card')
+    expect(post).toContain('nq-card')
   })
 
   it('uses opacity-ladder variables for loading placeholders', () => {
@@ -39,10 +39,10 @@ describe('Nimiq content surface migration', () => {
     const profile = loadSource('src/components/profile/ProfileView.vue')
 
     expect(composer).toContain('aria-label="Post text"')
-    expect(composer).toContain('nf-input')
+    expect(composer).toContain('nq-input')
     expect(composer).toMatch(/v-if="error[^>]*role="alert"/)
     expect(search).toContain('aria-label="Search usernames"')
-    expect(search).toContain('nf-input')
+    expect(search).toContain('nq-input')
     expect(card).toContain('for="profile-username"')
     expect(card).toContain('id="profile-username"')
     expect(card).toContain('for="profile-display-name"')

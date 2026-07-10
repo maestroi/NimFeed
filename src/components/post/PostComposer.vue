@@ -122,7 +122,7 @@ function cancelPending() {
           rows="4"
           aria-label="Post text"
           placeholder="What should the network remember?"
-          class="nf-focus nf-input w-full resize-none rounded-xl px-3 py-2 text-sm"
+          class="nf-focus nq-input w-full resize-none text-sm"
           @input="onInput"
         />
 

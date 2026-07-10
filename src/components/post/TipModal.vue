@@ -96,7 +96,7 @@ async function send() {
           :class="[
             'nf-focus nf-press rounded-lg border px-2 py-2 text-xs font-semibold',
             customAmount === '' && selectedPreset === preset
-              ? 'border-[var(--nf-primary)] nq-blue-bg text-white'
+              ? 'border-[var(--nf-primary)] nq-light-blue-bg text-white'
               : 'border-[var(--nf-border)] text-[var(--nf-text)] hover:bg-[var(--nf-soft)]',
           ]"
           @click="pickPreset(preset)"
@@ -112,7 +112,7 @@ async function send() {
         min="0"
         step="any"
         placeholder="Custom amount"
-        class="nf-focus nf-input mb-4 w-full rounded-lg px-3 py-2 text-sm"
+        class="nf-focus nq-input mb-4 w-full text-sm"
       />
 
       <button
