@@ -97,7 +97,7 @@ function handleFollowClick() {
             :class="[
               'nf-focus nf-press rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50',
               active
-                ? 'border border-[var(--nf-border)] text-[var(--nf-muted)] hover:text-rose-600'
+                ? 'border border-[var(--nf-border)] text-[var(--nf-muted)] hover:text-[var(--nf-red)]'
                 : 'nq-blue-bg text-white',
             ]"
             @click="handleFollowClick"
@@ -109,26 +109,28 @@ function handleFollowClick() {
 
       <div v-if="editing" class="mt-4 space-y-3">
         <div>
-          <label class="block text-[11px] font-semibold text-[var(--nf-muted)] mb-1">Username</label>
+          <label for="profile-username" class="mb-1 block text-[11px] font-semibold text-[var(--nf-muted)]">Username</label>
           <input
+            id="profile-username"
             v-model="editUsername"
             type="text"
-            class="nf-focus w-full rounded-lg border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)]"
+            class="nf-focus nf-input w-full rounded-lg px-3 py-2 text-sm"
             placeholder="username"
             autocomplete="off"
             spellcheck="false"
           />
         </div>
         <div>
-          <label class="block text-[11px] font-semibold text-[var(--nf-muted)] mb-1">Display name</label>
+          <label for="profile-display-name" class="mb-1 block text-[11px] font-semibold text-[var(--nf-muted)]">Display name</label>
           <input
+            id="profile-display-name"
             v-model="editDisplayName"
             type="text"
-            class="nf-focus w-full rounded-lg border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)]"
+            class="nf-focus nf-input w-full rounded-lg px-3 py-2 text-sm"
             placeholder="Display name (optional)"
           />
         </div>
-        <p v-if="editError" class="text-xs text-rose-600">{{ editError }}</p>
+        <p v-if="editError" class="text-xs nf-danger-text" role="alert">{{ editError }}</p>
         <div class="flex gap-2">
           <button
             type="button"
@@ -201,7 +203,7 @@ function handleFollowClick() {
         <button
           v-if="isSelf"
           type="button"
-          class="nf-focus ml-auto rounded-full border border-[var(--nf-border)] px-4 py-2 text-xs font-semibold text-[var(--nf-muted)] hover:border-rose-300 hover:text-rose-600"
+          class="nf-focus ml-auto rounded-full border border-[var(--nf-border)] px-4 py-2 text-xs font-semibold text-[var(--nf-muted)] hover:border-[rgba(217,68,50,0.3)] hover:text-[var(--nf-red)]"
           @click="logout"
         >
           Log out

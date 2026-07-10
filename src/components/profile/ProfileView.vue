@@ -249,7 +249,7 @@ onBeforeUnmount(() => {
             <button
               v-if="isSelf"
               type="button"
-              class="nf-focus block w-full rounded-md px-2 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50"
+              class="nf-focus block w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--nf-red)] hover:bg-[rgba(217,68,50,0.08)]"
               :disabled="resettingIndex"
               @click="resetLocalIndex"
             >
@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
     </header>
 
     <div v-if="showDebug" class="px-4 pt-3 sm:px-6">
-      <section class="rounded-xl border border-[var(--nf-border)] bg-white p-3">
+      <section class="nf-notice p-3">
         <div class="mb-2 flex items-center justify-between">
           <p class="nq-label !m-0 text-[var(--nf-muted)]">Diagnostics</p>
           <div class="flex items-center gap-3">
@@ -324,15 +324,15 @@ onBeforeUnmount(() => {
 
     <div v-if="loading && !user" class="px-4 pt-4 sm:px-6">
       <div class="nf-card animate-pulse p-5 space-y-3">
-        <div class="h-16 w-16 rounded-full bg-slate-200" />
-        <div class="h-4 w-1/3 rounded bg-slate-200" />
+        <div class="h-16 w-16 rounded-full bg-[var(--text-12)]" />
+        <div class="h-4 w-1/3 rounded bg-[var(--text-12)]" />
       </div>
     </div>
 
     <ProfileCard v-else :user="user" :address="address" :saving-profile="savingProfile" @save-profile="handleSaveProfile" />
 
     <div v-if="isSelf && showRpcSettings" class="px-4 pt-3 sm:px-6">
-      <section class="rounded-xl border border-[var(--nf-border)] bg-white p-4">
+      <section class="nf-notice p-4">
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="nq-label !m-0 text-[var(--nf-muted)]">RPC Endpoint</p>
@@ -344,7 +344,7 @@ onBeforeUnmount(() => {
             class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
             :class="
               customRpcEndpoint
-                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                ? 'nf-gold-chip'
                 : 'border-[var(--nf-border)] bg-[var(--nf-soft)] text-[var(--nf-muted)]'
             "
           >
@@ -352,19 +352,20 @@ onBeforeUnmount(() => {
           </span>
         </div>
 
-        <label class="mt-3 block text-[11px] font-semibold text-[var(--nf-muted)]">Endpoint URL</label>
+        <label for="rpc-endpoint" class="mt-3 block text-[11px] font-semibold text-[var(--nf-muted)]">Endpoint URL</label>
         <input
+          id="rpc-endpoint"
           v-model="rpcInput"
           type="url"
-          class="nf-focus mt-1 w-full rounded-lg border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)]"
+          class="nf-focus nf-input mt-1 w-full rounded-lg px-3 py-2 text-sm"
           placeholder="https://rpc-mainnet.nimiqscan.com"
           autocomplete="off"
           spellcheck="false"
         />
 
-        <p class="mt-2 break-all text-[11px] text-[var(--nf-muted)]">default: {{ defaultRpcEndpoint }}</p>
-        <p v-if="rpcError" class="mt-1 text-xs text-rose-600">{{ rpcError }}</p>
-        <p v-else-if="rpcNotice" class="mt-1 text-xs text-emerald-700">{{ rpcNotice }}</p>
+        <p class="nf-mono mt-2 break-all text-[11px] text-[var(--nf-muted)]">default: {{ defaultRpcEndpoint }}</p>
+        <p v-if="rpcError" class="mt-1 text-xs nf-danger-text" role="alert">{{ rpcError }}</p>
+        <p v-else-if="rpcNotice" class="mt-1 text-xs nf-success-text">{{ rpcNotice }}</p>
 
         <div class="mt-3 flex items-center gap-2">
           <button

@@ -66,11 +66,11 @@ const syncStatusLabel = computed(() => {
   return 'Up to date'
 })
 const syncStatusClass = computed(() => {
-  if (syncStatus.value.phase === 'error') return 'border-rose-200 bg-rose-50 text-rose-700'
+  if (syncStatus.value.phase === 'error') return 'nf-status-danger'
   if (syncStatus.value.phase === 'syncing') {
-    return 'border-amber-200 bg-amber-50 text-amber-700'
+    return 'nf-status-warning'
   }
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'nf-status-success'
 })
 const showSyncBar = computed(() => syncStatus.value.phase === 'syncing' || syncStatus.value.phase === 'error')
 
@@ -276,7 +276,7 @@ watch(sentinelRef, (el, oldEl) => {
     </div>
 
     <div ref="pullContentRef" class="nf-pull-content">
-    <header class="sticky top-0 z-20 relative border-b nf-divider bg-white/90 backdrop-blur">
+    <header class="sticky top-0 z-20 relative border-b nf-divider bg-white/95 backdrop-blur">
       <div
         v-if="feedLoading"
         class="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden"
@@ -290,32 +290,36 @@ watch(sentinelRef, (el, oldEl) => {
 
       <div class="px-4 py-3 sm:px-6">
         <div>
-          <p class="nq-label !m-0 text-[var(--nf-muted)]">Nimiq Social</p>
+          <p class="nq-label !m-0 text-[var(--nf-primary)]">Nimiq Social</p>
           <h1 class="nq-h2 !m-0 text-[var(--nf-text)]">NimFeed</h1>
         </div>
 
         <div class="mt-3 flex items-center gap-2">
+          <div class="nf-segmented-control flex h-9 items-center rounded-full bg-[var(--text-6)] p-1" role="group" aria-label="Feed view">
           <button
             type="button"
-            class="nf-focus nf-press rounded-full border px-3 py-1.5 text-xs font-semibold"
-            :class="ui.activeTab === 'global' ? 'border-transparent nq-blue-bg text-white' : 'border-[var(--nf-border)] text-[var(--nf-muted)]'"
+            class="nf-focus h-7 rounded-full px-3 text-xs font-semibold"
+            :class="ui.activeTab === 'global' ? 'nq-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
+            :aria-pressed="ui.activeTab === 'global'"
             @click="switchTab('global')"
           >
             Home
           </button>
           <button
             type="button"
-            class="nf-focus nf-press rounded-full border px-3 py-1.5 text-xs font-semibold"
-            :class="ui.activeTab === 'following' ? 'border-transparent nq-blue-bg text-white' : 'border-[var(--nf-border)] text-[var(--nf-muted)]'"
+            class="nf-focus h-7 rounded-full px-3 text-xs font-semibold"
+            :class="ui.activeTab === 'following' ? 'nq-blue-bg text-white' : 'text-[var(--nf-muted)] hover:text-[var(--nf-text)]'"
+            :aria-pressed="ui.activeTab === 'following'"
             @click="auth.isLoggedIn ? switchTab('following') : (ui.loginModalOpen = true)"
           >
             Following
           </button>
+          </div>
           <div class="ml-auto flex flex-col items-end gap-1">
             <button
               v-if="!showSyncBar"
               type="button"
-              class="nf-focus rounded-full p-0.5 text-emerald-600 hover:text-emerald-700"
+              class="nf-focus rounded-full p-0.5 nf-success-text hover:opacity-80"
               :class="syncDetailsOpen ? 'opacity-100' : 'opacity-70'"
               title="Up to date"
               aria-label="Up to date"
@@ -377,7 +381,7 @@ watch(sentinelRef, (el, oldEl) => {
             :href="aceStakingUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="nf-focus inline-flex items-center gap-1.5 rounded-full border border-[#f2cf7c] bg-[#fff8e7] px-3 py-1 text-[11px] font-semibold text-[#9a6a00] hover:bg-[#fff3d0]"
+            class="nf-focus inline-flex items-center gap-1.5 rounded-full border nf-gold-chip px-3 py-1 text-[11px] font-semibold hover:bg-white"
           >
             <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 fill-current" aria-hidden="true">
               <path
@@ -391,9 +395,10 @@ watch(sentinelRef, (el, oldEl) => {
         <button
           v-if="showSyncBar"
           type="button"
-          class="nf-focus mt-2 flex min-h-11 w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold"
+          class="nf-focus nf-notice mt-2 flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold"
           :class="syncStatusClass"
           :aria-expanded="syncDetailsOpen"
+          :role="syncStatus.phase === 'error' ? 'alert' : 'status'"
           @click="handleSyncStatusClick"
         >
           <svg
@@ -425,14 +430,14 @@ watch(sentinelRef, (el, oldEl) => {
 
         <div
           v-if="syncDetailsOpen"
-          class="mt-2 space-y-1.5 rounded-xl border border-[var(--nf-border)] bg-[var(--nf-soft)] p-3 text-[11px] text-[var(--nf-muted)]"
+          class="nf-notice mt-2 space-y-1.5 p-3 text-[11px] text-[var(--nf-muted)]"
         >
           <p class="font-semibold text-[var(--nf-text)]">Public sync details</p>
           <p>History: {{ syncStatus.catalogFullySynced ? 'fully indexed' : 'still backfilling' }}</p>
           <p>Local data: {{ syncStatus.postCount }} posts · {{ syncStatus.refCount }} references</p>
-          <p class="break-all">RPC: {{ syncStatus.rpcEndpoint }}</p>
-          <p class="break-all">Catalog: {{ syncStatus.postCatalog }}</p>
-          <p v-if="syncStatus.error" class="text-rose-700">Error: {{ syncStatus.error }}</p>
+          <p class="nf-mono break-all">RPC: {{ syncStatus.rpcEndpoint }}</p>
+          <p class="nf-mono break-all">Catalog: {{ syncStatus.postCatalog }}</p>
+          <p v-if="syncStatus.error" class="nf-danger-text" role="alert">Error: {{ syncStatus.error }}</p>
           <button
             v-if="syncStatus.phase === 'error'"
             type="button"

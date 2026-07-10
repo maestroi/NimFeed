@@ -120,25 +120,26 @@ function cancelPending() {
           :value="text"
           :maxlength="MAX_POST_CHARS"
           rows="4"
+          aria-label="Post text"
           placeholder="What should the network remember?"
-          class="nf-focus w-full resize-none rounded-xl border border-[var(--nf-border)] bg-white px-3 py-2 text-sm text-[var(--nf-text)] placeholder:text-[var(--nf-muted)]"
+          class="nf-focus nf-input w-full resize-none rounded-xl px-3 py-2 text-sm"
           @input="onInput"
         />
 
         <div class="mt-3 flex items-center justify-between gap-3">
           <span
             class="text-xs"
-            :class="charCount > MAX_POST_CHARS * 0.9 ? 'text-rose-600' : 'text-[var(--nf-muted)]'"
+            :class="charCount > MAX_POST_CHARS * 0.9 ? 'nf-danger-text' : 'text-[var(--nf-muted)]'"
           >
             {{ charCount }}/{{ MAX_POST_CHARS }}
           </span>
 
           <div class="flex items-center gap-2">
-            <span v-if="error && !popupBlocked" class="text-xs text-rose-600">{{ error }}</span>
+            <span v-if="error && !popupBlocked" class="text-xs nf-danger-text" role="alert">{{ error }}</span>
 
             <button
               type="button"
-              class="nf-focus nf-press rounded-full nq-blue-bg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              class="nf-focus nf-press rounded-full nq-gold-bg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               :disabled="!text.trim() || sending"
               @click="post"
             >
@@ -147,7 +148,7 @@ function cancelPending() {
             <button
               v-if="hasPendingChunkUpload && !sending"
               type="button"
-              class="nf-focus text-xs font-semibold text-[var(--nf-muted)] hover:text-rose-600"
+              class="nf-focus text-xs font-semibold text-[var(--nf-muted)] hover:text-[var(--nf-red)]"
               @click="cancelPending"
             >
               Cancel pending upload

@@ -166,7 +166,7 @@ const cardClass = computed(() => [
               </a>
               <span
                 v-if="tipHeight && post.block_height != null && tipHeight - post.block_height < TENTATIVE_BLOCK_CONFIRMATIONS"
-                class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                class="rounded-full border nf-gold-chip px-2 py-0.5 text-[10px] font-semibold"
                 title="Waiting for confirmations"
               >
                 Pending
@@ -218,7 +218,7 @@ const cardClass = computed(() => [
             </a>
             <span
               v-if="tipHeight && post.block_height != null && tipHeight - post.block_height < TENTATIVE_BLOCK_CONFIRMATIONS"
-              class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+              class="rounded-full border nf-gold-chip px-2 py-0.5 text-[10px] font-semibold"
               title="Waiting for confirmations"
             >
               Pending

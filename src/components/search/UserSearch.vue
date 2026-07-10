@@ -72,9 +72,10 @@ function goToProfile(address) {
       <input
         v-model="query"
         type="search"
+        aria-label="Search usernames"
         placeholder="Search usernames"
         autofocus
-        class="nf-focus mt-3 w-full rounded-full border border-[var(--nf-border)] bg-white px-4 py-2.5 text-sm"
+        class="nf-focus nf-input mt-3 w-full px-4 py-2.5 text-sm"
       />
     </header>
 
