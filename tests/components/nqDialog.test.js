@@ -25,6 +25,8 @@ describe('NqDialog accessibility', () => {
     expect(source).toContain('<Transition name="nq-dialog">')
     expect(source).toContain('nf-card')
     expect(source).toContain('max-width: 360px')
+    expect(source).toContain('background: var(--nf-soft)')
+    expect(source).not.toContain('var(--nf-surface-soft)')
     expect(source).toContain('<slot />')
     expect(source).toContain('<slot name="actions" />')
   })

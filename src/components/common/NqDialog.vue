@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
 }
 
 .nq-dialog-close:hover {
-  background: var(--nf-surface-soft);
+  background: var(--nf-soft);
 }
 
 .nq-dialog-content {
