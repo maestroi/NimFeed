@@ -303,7 +303,7 @@ watch(sentinelRef, (el, oldEl) => {
             :aria-pressed="ui.activeTab === 'global'"
             @click="switchTab('global')"
           >
-            Home
+            Global
           </button>
           <button
             type="button"
@@ -398,7 +398,6 @@ watch(sentinelRef, (el, oldEl) => {
           class="nf-focus nf-notice mt-2 flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold"
           :class="syncStatusClass"
           :aria-expanded="syncDetailsOpen"
-          :role="syncStatus.phase === 'error' ? 'alert' : 'status'"
           @click="handleSyncStatusClick"
         >
           <svg
@@ -424,7 +423,7 @@ watch(sentinelRef, (el, oldEl) => {
             class="h-2.5 w-2.5 shrink-0 rounded-full bg-current"
             aria-hidden="true"
           />
-          <span>{{ syncStatusLabel }}</span>
+          <span role="status" aria-live="polite">{{ syncStatusLabel }}</span>
           <span class="ml-auto font-normal opacity-80">{{ syncStatus.postCount }} posts indexed</span>
         </button>
 

@@ -282,7 +282,7 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-        <div v-if="debugData" class="space-y-2 text-[11px] leading-relaxed text-[var(--nf-muted)]">
+        <div v-if="debugData" class="nf-mono space-y-2 text-[11px] leading-relaxed text-[var(--nf-muted)]">
           <p><span class="font-semibold text-[var(--nf-text)]">network:</span> {{ debugData.network }}</p>
           <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">rpc:</span> {{ debugData.rpcEndpoint }}</p>
           <p class="break-all"><span class="font-semibold text-[var(--nf-text)]">explorer:</span> {{ debugData.explorerBase }}</p>
