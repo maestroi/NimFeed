@@ -82,7 +82,7 @@ onBeforeUnmount(() => {
         panel-class="nf-dialog-wide"
         @close="closeComposer"
       >
-        <PostComposer />
+        <PostComposer v-if="ui.composerOpen" />
       </NqDialog>
     </div>
   </div>

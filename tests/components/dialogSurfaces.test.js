@@ -56,4 +56,16 @@ describe('dialog surface migration', () => {
   ])('%s keeps composer dialogs wide', (path) => {
     expect(source(path)).toContain('panel-class="nf-dialog-wide"')
   })
+
+  it('mounts the global composer only while its dialog is open', () => {
+    const shell = source('src/components/layout/AppShell.vue')
+
+    expect(shell).toMatch(/<PostComposer\s+v-if="ui\.composerOpen"\s*\/>/)
+  })
+
+  it('mounts the reply composer only while its dialog is open and has a root post', () => {
+    const thread = source('src/components/post/PostThreadView.vue')
+
+    expect(thread).toContain('v-if="composerOpen && rootPost"')
+  })
 })
