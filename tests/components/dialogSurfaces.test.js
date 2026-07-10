@@ -66,6 +66,7 @@ describe('dialog surface migration', () => {
   it('mounts the reply composer only while its dialog is open and has a root post', () => {
     const thread = source('src/components/post/PostThreadView.vue')
 
-    expect(thread).toContain('v-if="composerOpen && rootPost"')
+    expect(thread).toMatch(/<PostComposer\s+v-if="composerOpen && rootPost"[\s\S]*?:reply-to=/)
+    expect(thread).toMatch(/<PostCard\s+v-if="rootPost"\s+:post="rootPost"/)
   })
 })

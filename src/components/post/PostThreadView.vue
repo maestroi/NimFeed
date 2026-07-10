@@ -90,7 +90,7 @@ function openReplyComposer() {
     <template v-else>
       <div class="space-y-3 px-4 pt-4 sm:px-6">
         <PostCard
-          v-if="composerOpen && rootPost"
+          v-if="rootPost"
           :post="rootPost"
           flat
           highlight
@@ -138,7 +138,7 @@ function openReplyComposer() {
         @close="composerOpen = false"
       >
         <PostComposer
-          v-if="rootPost"
+          v-if="composerOpen && rootPost"
           :reply-to="{
             author: rootPost.author,
             postId: rootPost.post_id,
