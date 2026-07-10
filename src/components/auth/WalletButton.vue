@@ -68,7 +68,7 @@ onBeforeUnmount(() => {
       type="button"
       aria-label="Open wallet menu"
       :aria-expanded="open"
-      class="nf-icon-button nf-focus min-h-11 gap-2 rounded-full border border-[var(--nf-border)] bg-white px-2 text-left hover:bg-[var(--nf-soft)]"
+      class="nf-wallet-trigger nf-focus gap-2 rounded-full border border-[var(--nf-border)] bg-white px-2 text-left hover:bg-[var(--nf-soft)]"
       @click.stop="toggleMenu"
     >
       <AddressIdenticon :address="auth.address" img-class="h-7 w-7" />
@@ -110,3 +110,17 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.nf-wallet-trigger {
+  display: inline-flex;
+  min-height: 44px;
+  width: auto;
+  align-items: center;
+  color: var(--nf-text);
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--nimiq-ease),
+    border-color 0.2s var(--nimiq-ease);
+}
+</style>

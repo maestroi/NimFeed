@@ -37,11 +37,21 @@ describe('Nimiq-aligned application shell', () => {
     const wallet = source('src/components/auth/WalletButton.vue')
 
     expect(wallet).toContain('nq-button light-blue')
-    expect(wallet).toContain('nf-icon-button')
+    expect(wallet).toContain('nf-wallet-trigger nf-focus')
     expect(wallet).toContain('nq-button-s nf-focus')
     expect(wallet).toContain('nf-button-quiet nf-focus')
     expect(wallet).toContain('aria-label="Open wallet menu"')
     expect(wallet).toContain('<svg')
     expect(wallet).not.toContain('▾')
+  })
+
+  it('keeps the logged-in wallet trigger auto-width and touch-safe', () => {
+    const wallet = source('src/components/auth/WalletButton.vue')
+    const trigger = wallet.match(/<button\s+type="button"\s+aria-label="Open wallet menu"[\s\S]*?<\/button>/)?.[0]
+
+    expect(trigger).toBeTruthy()
+    expect(trigger).not.toContain('nf-icon-button')
+    expect(trigger).toContain('nf-wallet-trigger')
+    expect(wallet).toMatch(/\.nf-wallet-trigger\s*{[^}]*min-height:\s*44px;[^}]*width:\s*auto;/)
   })
 })
